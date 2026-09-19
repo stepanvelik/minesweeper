@@ -1294,10 +1294,51 @@ def main():
     pygame.init()
     pygame.display.set_caption("Сапёр — уровни, очки и магазин скинов")
     load_settings()  # тема + скины из файла
-    # большее окно + сглаживание за счёт крупного CELL
+    # Рисуем всегда на логический canvas (WIDTHxHEIGHT), на экран — с масштабом.
+    # На Маке это надёжнее exclusive-fullscreen: безрамочное окно + letterbox.
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    win_size = (WIDTH, HEIGHT)
+    canvas = pygame.Surface((WIDTH, HEIGHT))
+    canvas_size = (WIDTH, HEIGHT)
     fullscreen = False
+    fs_scale = 1.0
+    fs_offset = (0, 0)
+
+    def apply_window():
+        """Пересоздать окно/canvas под текущий размер и режим."""
+        nonlocal screen, canvas, canvas_size, fs_scale, fs_offset
+        if fullscreen:
+            try:
+                dw, dh = pygame.display.get_desktop_sizes()[0]
+            except Exception:
+                dw, dh = WIDTH * 2, HEIGHT * 2
+            screen = pygame.display.set_mode((dw, dh), pygame.NOFRAME)
+            s = min(dw / WIDTH, dh / HEIGHT)
+            fs_scale = s
+            fs_offset = (int((dw - WIDTH * s) // 2), int((dh - HEIGHT * s) // 2))
+        else:
+            screen = pygame.display.set_mode((WIDTH, HEIGHT))
+            fs_scale = 1.0
+            fs_offset = (0, 0)
+        if canvas_size != (WIDTH, HEIGHT):
+            canvas = pygame.Surface((WIDTH, HEIGHT))
+            canvas_size = (WIDTH, HEIGHT)
+
+    def to_logical(pos):
+        if not fullscreen:
+            return pos
+        ox, oy = fs_offset
+        return (int((pos[0] - ox) / fs_scale), int((pos[1] - oy) / fs_scale))
+
+    def present():
+        if fullscreen:
+            screen.fill((0, 0, 0))
+            dw, dh = int(WIDTH * fs_scale), int(HEIGHT * fs_scale)
+            frame = canvas if (dw, dh) == (WIDTH, HEIGHT) else pygame.transform.smoothscale(
+                canvas, (dw, dh))
+            screen.blit(frame, fs_offset)
+        else:
+            screen.blit(canvas, (0, 0))
+        pygame.display.flip()
     clock = pygame.time.Clock()
     # шрифты крупнее; основной текст идёт через draw_text_crisp (суперсэмплинг x3)
     font = pygame.font.SysFont("arial", FONT_CELL, bold=True)
@@ -1378,12 +1419,10 @@ def main():
 
     running = True
     while running:
-        # окно подстраивается под уровень (размер поля), режим не сбрасывает
-        if (WIDTH, HEIGHT) != win_size:
-            flags = (pygame.FULLSCREEN | pygame.SCALED) if fullscreen else 0
-            screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
-            win_size = (WIDTH, HEIGHT)
-        mouse_pos = pygame.mouse.get_pos()
+        # окно/canvas подстраиваются под уровень (размер поля)
+        if (WIDTH, HEIGHT) != canvas_size:
+            apply_window()
+        mouse_pos = to_logical(pygame.mouse.get_pos())
         mouse_down = pygame.mouse.get_pressed()[0]
         ticks = pygame.time.get_ticks()
         for event in pygame.event.get():
@@ -1393,11 +1432,10 @@ def main():
                 k = event.key
                 if k == pygame.K_F11 or (k == pygame.K_f and not (
                         mode == "race" and race["field"])):
-                    # полноэкранный режим (в полях ввода F печатается как буква)
+                    # полноэкранный режим (в полях ввода F печатается как буква).
+                    # На Маке жми F: F11 перехватывает macOS (Mission Control).
                     fullscreen = not fullscreen
-                    flags = (pygame.FULLSCREEN | pygame.SCALED) if fullscreen else 0
-                    screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
-                    win_size = (WIDTH, HEIGHT)
+                    apply_window()
                     continue
                 if mode == "race":
                     # меню гонки: поля ввода или хоткеи
@@ -1493,7 +1531,7 @@ def main():
                             cheat_win(board)
                             cheat_buf = ""
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                mx, my = event.pos
+                mx, my = to_logical(event.pos)
                 if mode == "race":
                     if rects.get("back") and rects["back"].collidepoint(mx, my):
                         race["field"] = None
@@ -1680,19 +1718,19 @@ def main():
                     race["client"].send_finish(el)
 
         if mode == "skins":
-            rects = draw_skins_menu(screen, mouse_pos, mouse_down, ticks)
+            rects = draw_skins_menu(canvas, mouse_pos, mouse_down, ticks)
         elif mode == "race":
-            rects = draw_race_menu(screen, race, mouse_pos, mouse_down, ticks)
+            rects = draw_race_menu(canvas, race, mouse_pos, mouse_down, ticks)
         elif mode == "lobby":
-            rects = draw_lobby(screen, race, mouse_pos, mouse_down, ticks)
+            rects = draw_lobby(canvas, race, mouse_pos, mouse_down, ticks)
         elif mode == "race_result":
-            rects = draw_race_result(screen, race, mouse_pos, mouse_down, ticks)
+            rects = draw_race_result(canvas, race, mouse_pos, mouse_down, ticks)
         else:
-            rects = draw(screen, font, small_font, tiny_font, board,
+            rects = draw(canvas, font, small_font, tiny_font, board,
                          mouse_pos=mouse_pos, mouse_down=mouse_down, ticks=ticks)
             if mode == "race_game":
-                draw_race_hud(screen, race)
-        pygame.display.flip()
+                draw_race_hud(canvas, race)
+        present()
         clock.tick(60)
 
     if race["role"]:
