@@ -5,12 +5,27 @@
 
 ## Запуск
 
-Нужен Python 3.9+.
+Нужен Python 3.9+. Зависимость одна — `pygame` (см. `requirements.txt`, проверено:
+ставится и импортируется, `pygame 2.6.1`).
 
 ```bash
-pip3 install -r requirements.txt
+python3 -m pip install -r requirements.txt
 python3 minesweeper.py
 ```
+
+На Windows вместо `python3` пиши `py`:
+
+```bash
+py -m pip install -r requirements.txt
+py minesweeper.py
+```
+
+> Если пишет «имя pip3 не распознано» (или `pip: command not found`) —
+> это нормально: команды `pip` / `pip3` просто нет в PATH.
+> Всегда используй форму `python -m pip` (или `py -m pip` на Windows) —
+> она работает через сам Python и ничего лишнего не требует.
+> На Windows при установке Python с python.org поставь галочку
+> «Add python.exe to PATH», на Mac — команды выше работают сразу.
 
 ## Управление
 
