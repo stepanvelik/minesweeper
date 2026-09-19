@@ -242,6 +242,21 @@ def get_font(size, bold=True, name="arial"):
     return _FONT_CACHE[key]
 
 
+# Русская раскладка: физическая клавиша F даёт «а», R — «к» и т.д.
+# hk() узнаёт хоткей в обеих раскладках (по коду или по букве).
+RU_KEYS = {"r": "к", "s": "ы", "t": "е", "g": "п", "h": "р", "j": "о",
+           "f": "а", "m": "ь", "y": "н", "e": "у", "o": "щ", "a": "ф"}
+RU_BACK = {v: k for k, v in RU_KEYS.items()}
+
+
+def hk(event, latin):
+    """Хоткей сработал? Работает и в русской раскладке."""
+    if event.key == getattr(pygame, "K_" + latin, None):
+        return True
+    u = (event.unicode or "").lower()
+    return bool(u) and (u == latin or u == RU_KEYS.get(latin, ""))
+
+
 def draw_text_crisp(screen, text, size, color, pos, center=False, bold=True, name="arial", ss=3):
     """Чёткий текст: рендер в ss раз крупнее + smoothscale вниз (против мыла)."""
     big = get_font(size * ss, bold, name).render(text, True, color)
@@ -1430,12 +1445,13 @@ def main():
                 running = False
             elif event.type == pygame.KEYDOWN:
                 k = event.key
-                if k == pygame.K_F11 or (k == pygame.K_f and not (
+                if k == pygame.K_F11 or (hk(event, "f") and not (
                         mode == "race" and race["field"])):
                     # полноэкранный режим (в полях ввода F печатается как буква).
                     # На Маке жми F: F11 перехватывает macOS (Mission Control).
                     fullscreen = not fullscreen
                     apply_window()
+                    set_message(board, "FULLSCREEN ON" if fullscreen else "WINDOWED", 1.5)
                     continue
                 if mode == "race":
                     # меню гонки: поля ввода или хоткеи
@@ -1462,11 +1478,11 @@ def main():
                     else:
                         if k == pygame.K_ESCAPE:
                             mode = "game"
-                        elif k == pygame.K_h:
+                        elif hk(event, "h"):
                             race_host_game()
-                        elif k == pygame.K_j:
+                        elif hk(event, "j"):
                             race_join_game()
-                        elif k == pygame.K_t:
+                        elif hk(event, "t"):
                             toggle_theme()
                 elif mode == "lobby":
                     if k == pygame.K_ESCAPE:
@@ -1474,7 +1490,7 @@ def main():
                         mode = "race"
                     elif k == pygame.K_SPACE and race["role"] == "host":
                         race_start_host()
-                    elif k == pygame.K_t:
+                    elif hk(event, "t"):
                         toggle_theme()
                 elif mode == "race_game":
                     if k == pygame.K_ESCAPE:
@@ -1486,7 +1502,7 @@ def main():
                         use_mine_hint(board)
                     elif k == pygame.K_3:
                         toggle_shield(board)
-                    elif k == pygame.K_t:
+                    elif hk(event, "t"):
                         toggle_theme()
                 elif mode == "race_result":
                     if k == pygame.K_ESCAPE:
@@ -1494,28 +1510,29 @@ def main():
                         mode = "race"
                     elif k == pygame.K_SPACE and race["role"] == "host":
                         race_rematch()
-                    elif k == pygame.K_t:
+                    elif hk(event, "t"):
                         toggle_theme()
                 elif mode == "skins":
                     if k == pygame.K_ESCAPE:
                         mode = "game"
-                    elif k == pygame.K_s:
+                    elif hk(event, "s"):
                         mode = "game"
-                    elif k == pygame.K_t:
+                    elif hk(event, "t"):
                         toggle_theme()
                 elif mode == "game":
                     if k == pygame.K_ESCAPE:
                         pass
-                    elif k == pygame.K_s and not (
-                            "hesoyam".startswith(cheat_buf + "s")):
+                    elif hk(event, "s") and not (
+                            "hesoyam".startswith(cheat_buf + RU_BACK.get(
+                                (event.unicode or "").lower(), "s"))):
                         # S внутри слова HESOYAM — часть чита, а не меню
                         mode = "skins"
-                    elif k == pygame.K_g:
+                    elif hk(event, "g"):
                         race["field"] = None
                         mode = "race"
-                    elif k == pygame.K_t:
+                    elif hk(event, "t"):
                         toggle_theme()
-                    elif k == pygame.K_r:
+                    elif hk(event, "r"):
                         board = create_empty_board()
                         cheat_buf = ""
                     elif k == pygame.K_1:
@@ -1524,9 +1541,10 @@ def main():
                         use_mine_hint(board)
                     elif k == pygame.K_3:
                         toggle_shield(board)
-                    # чит HESOYAM: просто набери буквы на клавиатуре
+                    # чит HESOYAM: просто набери буквы (хоть по-русски)
                     if event.unicode and event.unicode.isalpha():
-                        cheat_buf = (cheat_buf + event.unicode.lower())[-7:]
+                        ch = RU_BACK.get(event.unicode.lower(), event.unicode.lower())
+                        cheat_buf = (cheat_buf + ch)[-7:]
                         if cheat_buf == "hesoyam":
                             cheat_win(board)
                             cheat_buf = ""
