@@ -11,6 +11,9 @@
 - 3 — бонус-щит от взрыва (1 шт)
 - S — меню магазина/уровней, T — светлая/тёмная тема, Esc — назад
 - G — Wi-Fi гонка (кто быстрее на одинаковой карте), R — новая игра
+- F / F11 — полноэкранный режим
+- В финале гонки: время каждого; хост жмёт REMATCH [Space] для реванша.
+  Если все взорвались — выигрывает открывший больше клеток.
 - Клик по круглой кнопке сверху — новая игра
 - Уровни: EASY 8x8 (+100), NORMAL 10x10 (+250), HARD 14x14 (+600).
   Победа даёт очки (минус 25 за каждую подсказку, минимум 1/4).
@@ -1249,22 +1252,42 @@ def draw_race_result(screen, race, mouse_pos, mouse_down, ticks):
         w = winners[0]
         draw_text_crisp(screen, f"WINNER {w['name']} {w['elapsed']:.1f}s",
                         FONT_INFO, GOLD_LIGHT, (18, 14), bold=True)
+    elif places:
+        top = places[0]
+        draw_text_crisp(screen,
+                        f"MOST CELLS {top['name']} {top.get('opened', 0)}/{top.get('total', 0)}",
+                        FONT_INFO, GOLD_LIGHT, (18, 14), bold=True)
     else:
-        draw_text_crisp(screen, "Everyone DNF!", FONT_INFO, (248, 113, 113), (18, 14), bold=True)
+        draw_text_crisp(screen, "No results yet", FONT_INFO, FG, (18, 14), bold=True)
     y = 70
     medals = ["1st", "2nd", "3rd"]
     for i, p in enumerate(places):
         tag = medals[i] if i < 3 else f"{i + 1}th"
         res = f"{p['elapsed']:.1f}s" if p["elapsed"] >= 0 else "DNF"
+        cells = f" ({p.get('opened', 0)}/{p.get('total', 0)})"
         you = " (YOU)" if p["name"] == race["name"] else ""
-        col = GOLD_LIGHT if i == 0 and winners else FG
-        draw_text_crisp(screen, f"{tag}  {p['name']}{you}  {res}", FONT_BTN, col, (18, y), bold=True)
+        col = GOLD_LIGHT if i == 0 else FG
+        draw_text_crisp(screen, f"{tag}  {p['name']}{you}  {res}{cells}",
+                        FONT_BTN, col, (18, y), bold=True)
         y += 38
-    qb = pygame.Rect(18, y + 16, 220, 52)
-    back = draw_hint_button(screen, 18, y + 16, 220, 52, "QUIT [Esc]",
-                            hover=qb.collidepoint(mouse_pos),
-                            pressed=mouse_down, ticks=ticks)
-    return {"back": back}
+    rects = {}
+    if race["role"] == "host":
+        rb = pygame.Rect(18, y + 16, 250, 52)
+        rects["rematch"] = draw_hint_button(screen, 18, y + 16, 250, 52, "REMATCH [Space]",
+                                            hover=rb.collidepoint(mouse_pos),
+                                            pressed=mouse_down, ticks=ticks)
+        qb = pygame.Rect(280, y + 16, 200, 52)
+        rects["back"] = draw_hint_button(screen, 280, y + 16, 200, 52, "QUIT [Esc]",
+                                         hover=qb.collidepoint(mouse_pos),
+                                         pressed=mouse_down, ticks=ticks)
+    else:
+        draw_text_crisp(screen, "Waiting for host rematch...", FONT_MSG, MUTED,
+                        (18, y + 16), bold=True)
+        qb = pygame.Rect(18, y + 52, 200, 52)
+        rects["back"] = draw_hint_button(screen, 18, y + 52, 200, 52, "QUIT [Esc]",
+                                         hover=qb.collidepoint(mouse_pos),
+                                         pressed=mouse_down, ticks=ticks)
+    return rects
 
 
 def main():
@@ -1273,6 +1296,8 @@ def main():
     load_settings()  # тема + скины из файла
     # большее окно + сглаживание за счёт крупного CELL
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    win_size = (WIDTH, HEIGHT)
+    fullscreen = False
     clock = pygame.time.Clock()
     # шрифты крупнее; основной текст идёт через draw_text_crisp (суперсэмплинг x3)
     font = pygame.font.SysFont("arial", FONT_CELL, bold=True)
@@ -1336,11 +1361,28 @@ def main():
         cheat_buf = ""
         mode = "race_game"
 
+    def race_rematch():
+        """Реванш: новая карта тем же составом. Только хост."""
+        nonlocal board, mode, cheat_buf
+        import random as _r
+        seed = _r.randint(1, 999999999)
+        race["host"].start_race(seed)
+        race["seed"] = seed
+        board = build_race_board(seed)
+        board["start_time"] = time.time()
+        race["reported"] = False
+        race["table"] = []
+        race["places"] = None
+        cheat_buf = ""
+        mode = "race_game"
+
     running = True
     while running:
-        # окно подстраивается под уровень (размер поля)
-        if screen.get_size() != (WIDTH, HEIGHT):
-            screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        # окно подстраивается под уровень (размер поля), режим не сбрасывает
+        if (WIDTH, HEIGHT) != win_size:
+            flags = (pygame.FULLSCREEN | pygame.SCALED) if fullscreen else 0
+            screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+            win_size = (WIDTH, HEIGHT)
         mouse_pos = pygame.mouse.get_pos()
         mouse_down = pygame.mouse.get_pressed()[0]
         ticks = pygame.time.get_ticks()
@@ -1349,6 +1391,14 @@ def main():
                 running = False
             elif event.type == pygame.KEYDOWN:
                 k = event.key
+                if k == pygame.K_F11 or (k == pygame.K_f and not (
+                        mode == "race" and race["field"])):
+                    # полноэкранный режим (в полях ввода F печатается как буква)
+                    fullscreen = not fullscreen
+                    flags = (pygame.FULLSCREEN | pygame.SCALED) if fullscreen else 0
+                    screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+                    win_size = (WIDTH, HEIGHT)
+                    continue
                 if mode == "race":
                     # меню гонки: поля ввода или хоткеи
                     if race["field"]:
@@ -1404,6 +1454,8 @@ def main():
                     if k == pygame.K_ESCAPE:
                         leave_race(race)
                         mode = "race"
+                    elif k == pygame.K_SPACE and race["role"] == "host":
+                        race_rematch()
                     elif k == pygame.K_t:
                         toggle_theme()
                 elif mode == "skins":
@@ -1475,6 +1527,10 @@ def main():
                     if rects.get("back") and rects["back"].collidepoint(mx, my):
                         leave_race(race)
                         mode = "race"
+                        continue
+                    if (rects.get("rematch") and race["role"] == "host"
+                            and rects["rematch"].collidepoint(mx, my)):
+                        race_rematch()
                         continue
                     continue
                 if mode == "skins":
@@ -1580,7 +1636,9 @@ def main():
                     race["table"] = ev["rows"]
                     race["players"] = [r["name"] for r in ev["rows"]]
                 elif t == "start":
-                    board = build_race_board(race["seed"])
+                    seed = ev.get("seed") or race["seed"]
+                    race["seed"] = seed
+                    board = build_race_board(seed)
                     board["start_time"] = time.time()
                     race["reported"] = False
                     race["table"] = []

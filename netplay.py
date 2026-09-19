@@ -109,10 +109,14 @@ class RaceHost:
         self._server.listen(8)
         threading.Thread(target=self._accept_loop, daemon=True).start()
 
-    def start_race(self):
+    def start_race(self, seed=None):
+        if seed is not None:
+            with self._lock:
+                self.seed = seed
         with self._lock:
             self.started = True
-        self._broadcast({"t": "start"})
+            sd = self.seed
+        self._broadcast({"t": "start", "seed": sd})
 
     def report_self(self, opened, total, finished=False, elapsed=-1):
         with self._lock:
@@ -285,18 +289,23 @@ class RaceHost:
             self.events.put({"t": "table", "rows": rows})
 
     def _maybe_result(self):
+        # Финишировавшие — по времени; если все DNF — по числу открытых клеток.
         with self._lock:
             if not self.players:
                 return
             if any(not p["finished"] for p in self.players.values()):
                 return
-            places = [{"name": n, "elapsed": p["elapsed"]}
+            places = [{"name": n, "elapsed": p["elapsed"],
+                       "opened": p["opened"], "total": p["total"]}
                       for n, p in sorted(self.players.items())
                       if p["elapsed"] is not None and p["elapsed"] >= 0]
             places.sort(key=lambda r: r["elapsed"])
-            for n, p in sorted(self.players.items()):
-                if p["elapsed"] is None or p["elapsed"] < 0:
-                    places.append({"name": n, "elapsed": -1})
+            dnf = [{"name": n, "elapsed": -1,
+                    "opened": p["opened"], "total": p["total"]}
+                   for n, p in sorted(self.players.items())
+                   if p["elapsed"] is None or p["elapsed"] < 0]
+            dnf.sort(key=lambda r: -r["opened"])
+            places.extend(dnf)
         self._broadcast({"t": "result", "places": places})
         self.events.put({"t": "result", "places": places})
 
