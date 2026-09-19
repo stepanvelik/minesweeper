@@ -1310,49 +1310,56 @@ def main():
     pygame.display.set_caption("Сапёр — уровни, очки и магазин скинов")
     load_settings()  # тема + скины из файла
     # Рисуем всегда на логический canvas (WIDTHxHEIGHT), на экран — с масштабом.
-    # На Маке это надёжнее exclusive-fullscreen: безрамочное окно + letterbox.
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    # Окно растягивается мышкой (RESIZABLE), на Маке это надёжнее
+    # exclusive-fullscreen: безрамочное окно + letterbox.
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
     canvas = pygame.Surface((WIDTH, HEIGHT))
     canvas_size = (WIDTH, HEIGHT)
     fullscreen = False
-    fs_scale = 1.0
-    fs_offset = (0, 0)
+    view_scale = 1.0
+    view_offset = (0, 0)
 
     def apply_window():
         """Пересоздать окно/canvas под текущий размер и режим."""
-        nonlocal screen, canvas, canvas_size, fs_scale, fs_offset
+        nonlocal screen, canvas, canvas_size
         if fullscreen:
             try:
                 dw, dh = pygame.display.get_desktop_sizes()[0]
             except Exception:
                 dw, dh = WIDTH * 2, HEIGHT * 2
             screen = pygame.display.set_mode((dw, dh), pygame.NOFRAME)
-            s = min(dw / WIDTH, dh / HEIGHT)
-            fs_scale = s
-            fs_offset = (int((dw - WIDTH * s) // 2), int((dh - HEIGHT * s) // 2))
         else:
-            screen = pygame.display.set_mode((WIDTH, HEIGHT))
-            fs_scale = 1.0
-            fs_offset = (0, 0)
+            screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
         if canvas_size != (WIDTH, HEIGHT):
             canvas = pygame.Surface((WIDTH, HEIGHT))
             canvas_size = (WIDTH, HEIGHT)
 
+    def update_view():
+        """Масштаб canvas->окно (для растягивания мышкой и fullscreen)."""
+        nonlocal view_scale, view_offset
+        ww, wh = screen.get_size()
+        if (ww, wh) == (WIDTH, HEIGHT):
+            view_scale = 1.0
+            view_offset = (0, 0)
+            return
+        s = min(ww / WIDTH, wh / HEIGHT)
+        view_scale = s
+        view_offset = (int((ww - WIDTH * s) // 2), int((wh - HEIGHT * s) // 2))
+
     def to_logical(pos):
-        if not fullscreen:
+        if view_scale == 1.0 and view_offset == (0, 0):
             return pos
-        ox, oy = fs_offset
-        return (int((pos[0] - ox) / fs_scale), int((pos[1] - oy) / fs_scale))
+        ox, oy = view_offset
+        return (int((pos[0] - ox) / view_scale), int((pos[1] - oy) / view_scale))
 
     def present():
-        if fullscreen:
-            screen.fill((0, 0, 0))
-            dw, dh = int(WIDTH * fs_scale), int(HEIGHT * fs_scale)
-            frame = canvas if (dw, dh) == (WIDTH, HEIGHT) else pygame.transform.smoothscale(
-                canvas, (dw, dh))
-            screen.blit(frame, fs_offset)
-        else:
+        if view_scale == 1.0 and view_offset == (0, 0):
             screen.blit(canvas, (0, 0))
+        else:
+            screen.fill((0, 0, 0))
+            dw, dh = int(WIDTH * view_scale), int(HEIGHT * view_scale)
+            frame = pygame.transform.smoothscale(canvas, (dw, dh))
+            screen.blit(frame, view_offset)
         pygame.display.flip()
     clock = pygame.time.Clock()
     # шрифты крупнее; основной текст идёт через draw_text_crisp (суперсэмплинг x3)
@@ -1437,6 +1444,7 @@ def main():
         # окно/canvas подстраиваются под уровень (размер поля)
         if (WIDTH, HEIGHT) != canvas_size:
             apply_window()
+        update_view()
         mouse_pos = to_logical(pygame.mouse.get_pos())
         mouse_down = pygame.mouse.get_pressed()[0]
         ticks = pygame.time.get_ticks()
