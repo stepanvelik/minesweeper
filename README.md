@@ -20,6 +20,15 @@ py -m pip install -r requirements.txt
 py minesweeper.py
 ```
 
+### Windows: отдельный Saper.exe с иконкой
+
+Чтобы была нормальная иконка в панели задач (а не Python), собери `.exe`:
+
+1. На Windows склонируй репозиторий и запусти **`build_exe.bat`**
+   (сам поставит `pygame` и `pyinstaller`, соберёт `dist\Saper.exe`
+   с иконкой `assets\icon.ico`)
+2. Рядом с `Saper.exe` положи папку `assets` — тогда и иконка окна подхватится
+
 > Если пишет «имя pip3 не распознано» (или `pip: command not found`) —
 > это нормально: команды `pip` / `pip3` просто нет в PATH.
 > Всегда используй форму `python -m pip` (или `py -m pip` на Windows) —

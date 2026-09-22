@@ -623,8 +623,11 @@ _ART_FULL = None
 
 def art_bomb_path():
     import os
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "assets", "icon.png")
+    import sys
+    # в .exe рядом лежит папка assets, в исходниках — рядом с файлом
+    base = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) \
+        else os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, "assets", "icon.png")
 
 
 def art_available():
@@ -1811,13 +1814,10 @@ def main():
     # Окно растягивается мышкой (RESIZABLE), на Маке это надёжнее
     # exclusive-fullscreen: безрамочное окно + letterbox.
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
-    try:  # иконка приложения (положи картинку в assets/icon.png)
-        _icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                  "assets", "icon.png")
-        if os.path.isfile(_icon_path):
-            _icon = pygame.image.load(_icon_path).convert_alpha()
-            # крупная иконка (256): ось сама ужмёт чётко, 32 мылит при растягивании
-            pygame.display.set_icon(pygame.transform.smoothscale(_icon, (256, 256)))
+    try:  # иконка приложения (assets/icon.png; в .exe — рядом с exe)
+        _icon = pygame.image.load(art_bomb_path()).convert_alpha()
+        # крупная иконка (256): ось сама ужмёт чётко, мелкая мылит при растягивании
+        pygame.display.set_icon(pygame.transform.smoothscale(_icon, (256, 256)))
     except Exception:
         pass
     canvas = pygame.Surface((WIDTH, HEIGHT))

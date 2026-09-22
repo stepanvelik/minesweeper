@@ -5,3 +5,6 @@ skins_settings.json
 __pycache__/
 preview_*.png
 *.pyc
+dist/
+build/
+*.spec
