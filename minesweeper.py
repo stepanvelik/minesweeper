@@ -120,10 +120,10 @@ SETTINGS = {"theme": "dark", "bomb_skin": "fuse", "flag_skin": "wave",
             "owned_bombs": ["fuse"], "owned_flags": ["wave"]}
 BOMB_SKINS = ["fuse", "classic", "neon"]
 FLAG_SKINS = ["wave", "triangle", "pirate"]
-BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon", "art": "Art"}
+BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon"}
 FLAG_NAMES = {"wave": "Wave", "triangle": "Classic", "pirate": "Pirate"}
 # цены магазина: базовые скины бесплатны
-SKIN_PRICES = {"fuse": 0, "classic": 150, "neon": 300, "art": 0,
+SKIN_PRICES = {"fuse": 0, "classic": 150, "neon": 300,
                "wave": 0, "triangle": 150, "pirate": 300}
 # сообщение магазина (показывается в меню)
 _SHOP_MSG = {"text": "", "until": 0}
@@ -322,7 +322,7 @@ STRINGS = {
     },
 }
 MEDALS = {"en": ["1st", "2nd", "3rd"], "ru": ["1-е", "2-е", "3-е"]}
-BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон", "art": "Арт"}
+BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон"}
 FLAG_RU = {"wave": "Волна", "triangle": "Классика", "pirate": "Пират"}
 
 
@@ -541,9 +541,11 @@ def art_available():
 
 
 def register_art_skin():
-    """Если есть assets/icon.png — добавить скин Art (бесплатно)."""
-    if art_available() and "art" not in BOMB_SKINS:
-        BOMB_SKINS.append("art")
+    """Скин Art убран из магазина. Функция-заглушка для совместимости."""
+    if "art" in BOMB_SKINS:
+        BOMB_SKINS.remove("art")
+    if SETTINGS.get("bomb_skin") == "art":
+        SETTINGS["bomb_skin"] = "fuse"
 
 
 def get_bomb_image(size=None, skin=None):
