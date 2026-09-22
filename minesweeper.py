@@ -25,6 +25,9 @@
 import random
 import time
 import queue
+import os
+import subprocess
+import sys
 import pygame
 
 try:
@@ -990,7 +993,7 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     else:
         draw_text_crisp(screen, "LMB-number=3x3  RMB-flag  R-restart", FONT_MSG, MUTED, (18, 150), bold=True)
 
-    # кнопки входа в магазин и Wi-Fi гонку (справа от сообщений)
+    # кнопки входа в хаб, магазин и Wi-Fi гонку (справа от сообщений)
     _rr = pygame.Rect(WIDTH - 160, 142, 142, 50)
     skins_rect = draw_hint_button(screen, WIDTH - 160, 142, 142, 50, "SKINS [S]",
                                   hover=_rr.collidepoint(mouse_pos),
@@ -999,13 +1002,17 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     race_rect = draw_hint_button(screen, WIDTH - 312, 142, 142, 50, "RACE [G]",
                                  hover=_rg.collidepoint(mouse_pos),
                                  pressed=mouse_down, ticks=ticks)
+    _gm = pygame.Rect(WIDTH - 464, 142, 142, 50)
+    games_rect = draw_hint_button(screen, WIDTH - 464, 142, 142, 50, "GAMES [M]",
+                                  hover=_gm.collidepoint(mouse_pos),
+                                  pressed=mouse_down, ticks=ticks)
 
     for r in range(ROWS):
         for c in range(COLS):
             draw_cell(screen, font, board, r, c)
 
     return {"face": face_rect, "safe": r_safe, "mine": r_mine, "shield": r_shield,
-            "skins": skins_rect, "race": race_rect}
+            "skins": skins_rect, "race": race_rect, "games": games_rect}
 
 
 def draw_skin_card(screen, x, y, w, h, image, name, selected=False,
@@ -1460,6 +1467,18 @@ def main():
         cheat_buf = ""
         mode = "race_game"
 
+    def launch_minigames():
+        """Открыть хаб отдельно, не останавливая текущую партию Сапёра."""
+        launcher = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minigames.py")
+        if not os.path.isfile(launcher):
+            set_message(board, "MINI GAMES module missing")
+            return
+        try:
+            subprocess.Popen([sys.executable, launcher], cwd=os.path.dirname(launcher))
+            set_message(board, "MINI GAMES opened")
+        except OSError:
+            set_message(board, "Could not open MINI GAMES")
+
     running = True
     while running:
         # окно/canvas подстраиваются под уровень (размер поля)
@@ -1559,6 +1578,8 @@ def main():
                     elif hk(event, "g"):
                         race["field"] = None
                         mode = "race"
+                    elif hk(event, "m"):
+                        launch_minigames()
                     elif hk(event, "t"):
                         toggle_theme()
                     elif hk(event, "r"):
@@ -1672,6 +1693,9 @@ def main():
                 if mode == "game" and rects.get("race") and rects["race"].collidepoint(mx, my):
                     race["field"] = None
                     mode = "race"
+                    continue
+                if mode == "game" and rects.get("games") and rects["games"].collidepoint(mx, my):
+                    launch_minigames()
                     continue
                 if my < HEADER:
                     continue

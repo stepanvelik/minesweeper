@@ -2,15 +2,24 @@
 """Крестики-нолики: локальный матч или матч с другом по Wi-Fi."""
 import queue
 import time
+import os
 import pygame
 import tictactoe_netplay as network
 
 W, H, FPS = 640, 720, 60
 BG, PANEL, BTN, BORDER = (25, 33, 52), (15, 23, 42), (36, 49, 73), (71, 85, 105)
 FG, MUTED, GOLD, GREEN, RED, BLUE = (255, 255, 255), (148, 163, 184), (245, 158, 11), (74, 222, 128), (248, 113, 113), (96, 165, 250)
+FONT_PATH = "C:/Windows/Fonts/segoeui.ttf"
+_fonts = {}
 
 
-def font(size, bold=True): return pygame.font.SysFont("arial", size, bold=bold)
+def font(size, bold=True):
+    key = (size, bold)
+    if key not in _fonts:
+        path = FONT_PATH if os.path.isfile(FONT_PATH) else pygame.font.match_font("arial", bold=bold)
+        _fonts[key] = pygame.font.Font(path, size)
+        _fonts[key].set_bold(bold)
+    return _fonts[key]
 def text(s, value, size, color, pos, center=False):
     image = font(size).render(value, True, color); rect = image.get_rect(center=pos) if center else image.get_rect(topleft=pos); s.blit(image, rect)
 
