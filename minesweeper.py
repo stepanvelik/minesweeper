@@ -993,7 +993,7 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     else:
         draw_text_crisp(screen, "LMB-number=3x3  RMB-flag  R-restart", FONT_MSG, MUTED, (18, 150), bold=True)
 
-    # кнопки входа в хаб, магазин и Wi-Fi гонку (справа от сообщений)
+    # кнопки магазина и Wi-Fi гонки под строкой сообщений
     _rr = pygame.Rect(WIDTH - 160, 142, 142, 50)
     skins_rect = draw_hint_button(screen, WIDTH - 160, 142, 142, 50, "SKINS [S]",
                                   hover=_rr.collidepoint(mouse_pos),
@@ -1002,8 +1002,10 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     race_rect = draw_hint_button(screen, WIDTH - 312, 142, 142, 50, "RACE [G]",
                                  hover=_rg.collidepoint(mouse_pos),
                                  pressed=mouse_down, ticks=ticks)
-    _gm = pygame.Rect(WIDTH - 464, 142, 142, 50)
-    games_rect = draw_hint_button(screen, WIDTH - 464, 142, 142, 50, "GAMES [M]",
+    # Хаб — отдельная заметная кнопка слева от круглого рестарта.
+    _gm = pygame.Rect(WIDTH - 240, 12, 140, 48)
+    games_rect = draw_hint_button(screen, WIDTH - 240, 12, 140, 48, "GAMES [M]",
+                                  active=True,
                                   hover=_gm.collidepoint(mouse_pos),
                                   pressed=mouse_down, ticks=ticks)
 

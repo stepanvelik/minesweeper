@@ -26,7 +26,9 @@ def main():
         for i,(title,subtitle,enabled) in enumerate(cards):
             rect=pygame.Rect(70,120+i*112,500,88); hover=rect.collidepoint(mouse) and enabled
             pygame.draw.rect(screen,(48,63,91) if hover else BTN,rect,border_radius=12); pygame.draw.rect(screen,GOLD if hover else BORDER,rect,3 if hover else 2,border_radius=12)
-            draw_text(screen,title,24,FG if enabled else MUTED,(92,138)); draw_text(screen,subtitle,16,MUTED,(92,171)); draw_text(screen,"ИГРАТЬ" if enabled else "СКОРО",18,GOLD if enabled else MUTED,(520,164),True)
+            draw_text(screen,title,24,FG if enabled else MUTED,(92,138)); draw_text(screen,subtitle,16,MUTED,(92,171))
+            if enabled:
+                draw_text(screen,"ИГРАТЬ",18,GOLD,(520,164),True)
             if click and enabled and rect.collidepoint(mouse): pygame.quit(); subprocess.call([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tictactoe.py")]); return
         pygame.display.flip(); clock.tick(60)
     pygame.quit()
