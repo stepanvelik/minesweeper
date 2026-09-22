@@ -36,6 +36,7 @@ class TicTacToeScreen:
         self.status, self.status_until, self.rects = "", 0, {}
         self.skin = settings.get("ttt_skin", "classic")
         self.votes = set()
+        self.players = []
 
     def note(self, text, seconds=3):
         self.status, self.status_until = text, time.time() + seconds
@@ -43,7 +44,7 @@ class TicTacToeScreen:
     def close_network(self):
         if self.peer:
             self.peer.stop()
-        self.peer, self.role, self.my_mark, self.votes = None, None, None, set()
+        self.peer, self.role, self.my_mark, self.votes, self.players = None, None, None, set(), []
 
     def new_game(self, size=None, first="X"):
         if size:
@@ -70,7 +71,8 @@ class TicTacToeScreen:
             kind = event.get("t")
             if kind == "joined":
                 self.my_mark = event.get("host_mark", "X")
-                self.new_game(event.get("size", self.size)); self.note(f"Соперник подключился. Вы играете {self.my_mark}")
+                self.players = [self.name or "Игрок", event.get("name", "Игрок")]
+                self.scene = "lobby"; self.note("Соперник подключился — можно начинать")
             elif kind == "welcome":
                 remote_size = event.get("size", self.size)
                 if remote_size != self.size:
@@ -78,7 +80,11 @@ class TicTacToeScreen:
                 else:
                     host_mark = event.get("host_mark", "X")
                     self.my_mark = "O" if host_mark == "X" else "X"
-                    self.new_game(remote_size); self.note(f"Подключено. Вы играете {self.my_mark}")
+                    self.players = [event.get("host", "Хост"), self.name or "Игрок"]
+                    self.scene = "lobby"; self.note("Подключено. Ожидание старта хоста")
+            elif kind == "start":
+                self.my_mark = event.get("my_mark", self.my_mark)
+                self.new_game(event.get("size", self.size), event.get("first", "X"))
             elif kind == "move":
                 cell, mark = event.get("cell"), event.get("mark")
                 if isinstance(cell, int) and 0 <= cell < len(self.board) and not self.board[cell] and mark in ("X", "O"):
@@ -92,7 +98,7 @@ class TicTacToeScreen:
                 self._start_voted_rematch()
             elif kind == "error":
                 self.note(event.get("msg", "Ошибка сети")); self.close_network(); self.scene = "online"
-            elif kind == "left" and self.scene == "game":
+            elif kind == "left" and self.scene in ("game", "lobby"):
                 self.note("Соперник вышел"); self.close_network(); self.scene = "online"
 
     def _ai_move(self):
@@ -150,12 +156,19 @@ class TicTacToeScreen:
         elif key == "ip": self.editing = "ip"
         elif key == "host":
             try:
-                self.peer = network.Host(self.name or "Игрок", self.size); self.peer.start(); self.role = "host"; self.note("Ожидание соперника…", 10)
+                self.peer = network.Host(self.name or "Игрок", self.size); self.peer.start(); self.role = "host"
+                self.players = [self.name or "Игрок"]; self.scene = "lobby"; self.note("Ожидание соперника…", 10)
             except OSError: self.note("Порт уже занят")
         elif key == "join":
             if not self._valid_ip(self.ip): self.note("Введите IP хоста")
             else:
                 self.peer = network.Client(self._valid_ip(self.ip), self.name or "Игрок", self.size); self.peer.start(); self.role = "client"; self.note("Подключение…", 8)
+        elif key == "lobby_back":
+            self.close_network(); self.scene = "online"
+        elif key == "start" and self.role == "host" and len(self.players) == 2:
+            self.new_game(first="X")
+            client_mark = "O" if self.my_mark == "X" else "X"
+            self.send({"t": "start", "size": self.size, "first": "X", "my_mark": client_mark})
         elif key == "skin":
             self.previous_scene, self.scene = self.scene, "skins"
         elif key == "skins_back":
@@ -223,6 +236,20 @@ class TicTacToeScreen:
                 rect = pygame.Rect(width // 2 - 210, y, 420, 48); pygame.draw.rect(surface, u["button_bg"](), rect, border_radius=10); pygame.draw.rect(surface, u["gold"]() if self.editing == key else u["border"](), rect, 3 if self.editing == key else 2, border_radius=10); u["text"](surface, value or label, 20, u["fg"]() if value else u["muted"](), (rect.x + 14, rect.y + 12), bold=True); self.rects[key] = rect
             self._pair(surface, "host", "СОЗДАТЬ", "join", "ПОДКЛЮЧИТЬСЯ", width, 320, mouse, down, ticks)
             self._button(surface, "menu", "← НАЗАД", width, 400, mouse, down, ticks)
+        elif self.scene == "lobby":
+            u["text"](surface, f"ЛОББИ {self.size} × {self.size}", 26, u["fg"](), (width // 2, 115), center=True, bold=True)
+            if self.role == "host":
+                u["text"](surface, f"Ваш IP: {network.lan_ip()}", 18, u["gold"](), (width // 2, 150), center=True, bold=True)
+            else:
+                u["text"](surface, "Ожидание старта от хоста", 18, u["gold"](), (width // 2, 150), center=True, bold=True)
+            u["text"](surface, "ПОДКЛЮЧЕННЫЕ ИГРОКИ", 19, u["muted"](), (width // 2, 195), center=True, bold=True)
+            for index, player in enumerate(self.players):
+                u["text"](surface, f"{index + 1}. {player}", 22, u["fg"](), (width // 2, 230 + index * 36), center=True, bold=True)
+            if self.role == "host":
+                self._button(surface, "start", "СТАРТ", width, 330, mouse, down, ticks, disabled=len(self.players) != 2)
+            else:
+                u["text"](surface, "Хост начнёт игру, когда оба будут готовы", 17, u["muted"](), (width // 2, 348), center=True, bold=True)
+            self._button(surface, "lobby_back", "← НАЗАД", width, 408, mouse, down, ticks)
         else:
             header = "НИЧЬЯ" if self.result == "DRAW" else f"ПОБЕДА: {self.result}" if self.result else (f"ВАШ ХОД ({self.my_mark})" if self.can_play() else f"ХОД СОПЕРНИКА ({self.turn})")
             u["text"](surface, header, 25, u["green"]() if self.result else u["gold"](), (width // 2, 98), center=True, bold=True)
@@ -241,8 +268,8 @@ class TicTacToeScreen:
                 self._pair(surface, "again", "НОВАЯ ИГРА", "menu", "← НАЗАД", width, bottom, mouse, down, ticks, disabled=not bool(self.result))
         if self.status and time.time() < self.status_until: u["text"](surface, self.status, 17, u["muted"](), (width // 2, height - 22), center=True, bold=True)
 
-    def _button(self, surface, key, label, width, y, mouse, down, ticks):
-        rect = pygame.Rect(width // 2 - 210, y, 420, 56); self.rects[key] = self.ui["button"](surface, rect.x, rect.y, rect.w, rect.h, label, hover=rect.collidepoint(mouse), pressed=down, ticks=ticks)
+    def _button(self, surface, key, label, width, y, mouse, down, ticks, disabled=False):
+        rect = pygame.Rect(width // 2 - 210, y, 420, 56); self.rects[key] = self.ui["button"](surface, rect.x, rect.y, rect.w, rect.h, label, hover=rect.collidepoint(mouse), pressed=down, ticks=ticks, disabled=disabled)
 
     def _pair(self, surface, left_key, left_label, right_key, right_label, width, y, mouse, down, ticks, disabled=False):
         for key, label, x in ((left_key, left_label, width // 2 - 210), (right_key, right_label, width // 2 + 6)):
