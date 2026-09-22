@@ -1093,7 +1093,8 @@ def draw_restart_button(screen, board, mouse_pos=(0, 0), mouse_down=False, ticks
     return hit
 
 
-def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_down=False, ticks=0):
+def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_down=False,
+         ticks=0, show_ttt=True):
     screen.fill(HEADER_BG)
     # верхняя HUD-панель + золотая акцентная линия
     pygame.draw.rect(screen, HEADER_BG, (0, 0, WIDTH, HEADER))
@@ -1168,12 +1169,14 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     race_rect = draw_hint_button(screen, WIDTH - 312, 142, 142, 50, T("race"),
                                  hover=_rg.collidepoint(mouse_pos),
                                  pressed=mouse_down, ticks=ticks, fontsize=20)
-    # Хаб мини-игр — отдельная заметная кнопка слева от круглого рестарта.
-    _gm = pygame.Rect(WIDTH - 290, 12, 190, 48)
-    games_rect = draw_hint_button(screen, WIDTH - 290, 12, 190, 48, T("games"),
-                                  active=True,
-                                  hover=_gm.collidepoint(mouse_pos),
-                                  pressed=mouse_down, ticks=ticks, fontsize=20)
+    games_rect = None
+    if show_ttt:
+        # Переход к другой игре доступен только вне активной Wi-Fi сессии.
+        _gm = pygame.Rect(WIDTH - 290, 12, 190, 48)
+        games_rect = draw_hint_button(screen, WIDTH - 290, 12, 190, 48, T("games"),
+                                      active=True,
+                                      hover=_gm.collidepoint(mouse_pos),
+                                      pressed=mouse_down, ticks=ticks, fontsize=20)
 
     for r in range(ROWS):
         for c in range(COLS):
@@ -2115,7 +2118,8 @@ def main():
             rects = draw_race_result(canvas, race, mouse_pos, mouse_down, ticks)
         else:
             rects = draw(canvas, font, small_font, tiny_font, board,
-                         mouse_pos=mouse_pos, mouse_down=mouse_down, ticks=ticks)
+                         mouse_pos=mouse_pos, mouse_down=mouse_down, ticks=ticks,
+                         show_ttt=mode != "race_game")
             if mode == "race_game":
                 draw_race_hud(canvas, race)
         present()
