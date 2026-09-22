@@ -11,7 +11,8 @@
 - 3 — бонус-щит от взрыва (1 шт)
 - S — меню магазина/уровней, T — светлая/тёмная тема, Esc — назад
 - Esc/C — настройки (язык RU/EN, тема, уровень, экран, сброс прогресса)
-- G — Wi-Fi гонка (кто быстрее на одинаковой карте), R — новая игра
+- G — Wi-Fi гонка (у каждого своя карта, кто быстрее; хост выбирает сложность)
+- R — новая игра (в гонке отключено)
 - F / F11 — полноэкранный режим
 - В финале гонки: время каждого; хост жмёт REMATCH [Space] для реванша.
   Если все взорвались — выигрывает открывший больше клеток.
@@ -54,6 +55,7 @@ ROWS, COLS, MINES = 10, 10, 15
 CELL = 64  # крупнее = чётче на Retina, кнопки и цифры больше
 HEADER = 210  # больше места под крупные кнопки
 MIN_WIDTH = 640  # окно не уже (шапка и меню рассчитаны на 640)
+RACE_PANEL_W = 300  # боковая панель с экраном противника в гонке
 WIDTH = COLS * CELL
 HEIGHT = ROWS * CELL + HEADER
 BOARD_X = 0  # сдвиг поля если окно шире (лёгкий уровень)
@@ -266,6 +268,7 @@ STRINGS = {
         "msg_host_left": "Host left the race",
         "msg_noconn": "No connection - wrong IP or host offline",
         "msg_bad_ip": "Bad IP. Example: 192.168.1.5",
+        "enemy": "ENEMY", "no_enemy": "Solo - no opponents yet",
         "mg_missing": "MINI GAMES module missing",
         "mg_opened": "MINI GAMES opened",
         "mg_fail": "Could not open MINI GAMES",
@@ -319,6 +322,7 @@ STRINGS = {
         "msg_host_left": "Хост вышел из гонки",
         "msg_noconn": "Нет соединения — неверный IP или хост оффлайн",
         "msg_bad_ip": "IP введён неверно. Пример: 192.168.1.5",
+        "enemy": "ПРОТИВНИК", "no_enemy": "Ты один — противников нет",
         "mg_missing": "Нет модуля мини-игр",
         "mg_opened": "Мини-игры открыты",
         "mg_fail": "Не вышло открыть мини-игры",
@@ -858,18 +862,22 @@ def ensure_mines(board):
         place_mines(board, ROWS // 2, COLS // 2)
 
 
-def build_race_board(seed):
-    """Одинаковая карта для сетевой гонки: сид + фикс. зона без мин в центре.
-    Центр предоткрыт всем — честный общий старт."""
-    rng = random.Random(seed)
-    cr, cc = ROWS // 2, COLS // 2
-    b = create_empty_board()
-    place_mines(b, cr, cc, rng=rng)
-    open_cell(b, cr, cc)  # центр безопасен (в запретной зоне)
-    b["start_time"] = None  # время стартует по команде со всех
-    b["message"] = ""
-    b["message_until"] = 0
-    return b
+def race_board_state(board):
+    """Снимок поля для трансляции противнику: открытые клетки и флажки."""
+    cells = [[r, c, (9 if board["mines"][r][c] else board["numbers"][r][c])]
+             for r in range(ROWS) for c in range(COLS) if board["opened"][r][c]]
+    flags = [[r, c] for r in range(ROWS) for c in range(COLS)
+             if board["flagged"][r][c] and not board["opened"][r][c]]
+    opened = sum(sum(row) for row in board["opened"])
+    return cells, flags, opened, ROWS * COLS - MINES
+
+
+def race_layout(on):
+    """Расширить окно боковой панелью противника (вкл) или вернуть (выкл)."""
+    global WIDTH, BOARD_X
+    base = max(COLS * CELL, MIN_WIDTH)
+    WIDTH = base + (RACE_PANEL_W if on else 0)
+    BOARD_X = 0 if on else (WIDTH - COLS * CELL) // 2
 
 
 def place_mines(board, safe_r, safe_c, rng=None):
@@ -1565,6 +1573,7 @@ def leave_race(race):
     race.clear()
     race.update(new_race_state())
     race["name"], race["ip"], race["my_ip"] = seed_keep_name, seed_keep_ip, my_ip
+    race_layout(False)  # убрать боковую панель противника
 
 
 def parse_host_ip(text):
@@ -1647,6 +1656,19 @@ def draw_lobby(screen, race, mouse_pos, mouse_down, ticks):
         y += 36
     rects = {"players": race.get("players", [])}
     if race["role"] == "host":
+        # хост выбирает сложность прямо в лобби
+        draw_text_crisp(screen, T("level_hdr"), FONT_BTN, MUTED, (18, y + 6), bold=True)
+        rects["diffs"] = {}
+        lw = (min(WIDTH, 640) - 36 - 24) // 3
+        for i, key in enumerate(DIFF_ORDER):
+            x = 18 + i * (lw + 12)
+            base = pygame.Rect(x, y + 34, lw, 46)
+            rects["diffs"][key] = draw_hint_button(
+                screen, x, y + 34, lw, 46, diff_label(key),
+                active=SETTINGS.get("difficulty") == key,
+                hover=base.collidepoint(mouse_pos),
+                pressed=mouse_down, ticks=ticks, fontsize=18)
+        y += 34 + 46 + 12
         st = pygame.Rect(18, y + 10, 304, 54)
         rects["start"] = draw_hint_button(screen, 18, y + 10, 304, 54, T("start_btn"),
                                           hover=st.collidepoint(mouse_pos),
@@ -1679,6 +1701,59 @@ def race_table_line(race):
 def draw_race_hud(screen, race):
     pygame.draw.rect(screen, HEADER_BG, (0, 176, WIDTH, 30))
     draw_text_crisp(screen, race_table_line(race), FONT_MSG, GOLD_LIGHT, (18, 181), bold=True)
+
+
+def draw_race_panel(screen, race):
+    """Боковая панель: живой экран противника (открытые клетки, флажки)."""
+    x0 = WIDTH - RACE_PANEL_W
+    pygame.draw.rect(screen, HEADER_BG, (x0, HEADER, RACE_PANEL_W, HEIGHT - HEADER))
+    pygame.draw.line(screen, GOLD, (x0, HEADER), (x0, HEIGHT), 2)
+    pygame.draw.line(screen, GOLD, (x0, HEADER), (WIDTH, HEADER), 2)
+    draw_text_crisp(screen, T("enemy"), FONT_BTN, FG, (x0 + 14, HEADER + 10), bold=True)
+    y = HEADER + 44
+    foes = [r for r in race.get("table", []) if r["name"] != race["name"]]
+    if not foes:
+        draw_text_crisp(screen, T("no_enemy"), FONT_MSG, MUTED, (x0 + 14, y), bold=True)
+        return
+    for row in foes:
+        if y + 30 > HEIGHT:
+            break
+        if row.get("finished"):
+            st = f"{row['elapsed']:.1f}s" if row["elapsed"] >= 0 else "DNF"
+        else:
+            st = f"{row.get('opened', 0)}/{row.get('total', 0)}"
+        draw_text_crisp(screen, f"{row['name']}  {st}", FONT_MSG, GOLD_LIGHT,
+                        (x0 + 14, y), bold=True)
+        y += 26
+        n = max(ROWS, COLS)
+        cw = (RACE_PANEL_W - 28) / max(COLS, 1)
+        chh = min(cw, 22)
+        mw, mh = cw * COLS, chh * ROWS
+        if y + mh > HEIGHT - 8:
+            mh = HEIGHT - 8 - y
+            chh = mh / max(ROWS, 1)
+        vals = {(c[0], c[1]): c[2] for c in row.get("cells", []) if len(c) >= 3}
+        fl = {(c[0], c[1]) for c in row.get("flags", []) if len(c) >= 2}
+        for r in range(ROWS):
+            for c in range(COLS):
+                rect = pygame.Rect(x0 + 14 + c * cw, y + r * chh,
+                                   max(1, int(cw)), max(1, int(chh)))
+                if (r, c) in vals:
+                    v = vals[(r, c)]
+                    pygame.draw.rect(screen, RED if v >= 9 else OPEN_BG, rect)
+                    if 0 < v < 9 and cw >= 11:
+                        num = get_font(max(8, int(cw * 0.55))).render(
+                            str(v), True, NUM_COLORS.get(v, WHITE))
+                        screen.blit(num, num.get_rect(center=rect.center))
+                else:
+                    pygame.draw.rect(screen, BG, rect)
+                    if (r, c) in fl:
+                        pygame.draw.polygon(screen, RED,
+                                            [(rect.left + 3, rect.top + 2),
+                                             (rect.right - 2, rect.centery),
+                                             (rect.left + 3, rect.bottom - 2)])
+                pygame.draw.rect(screen, OPEN_BORDER, rect, 1)
+        y += mh + 14
 
 
 def draw_race_result(screen, race, mouse_pos, mouse_down, ticks):
@@ -1857,27 +1932,34 @@ def main():
         nonlocal board, mode, cheat_buf
         apply_difficulty(race.get("diff", SETTINGS.get("difficulty", "normal")))
         race["host"].start_race()
-        board = build_race_board(race["host"].seed)
+        # у каждого СВОЯ карта: мины в разных местах, сложность одна
+        board = create_empty_board()
         board["start_time"] = time.time()
+        race_layout(True)
         race["reported"] = False
         race["table"] = []
         cheat_buf = ""
         mode = "race_game"
 
     def race_rematch():
-        """Реванш: новая карта тем же составом. Только хост."""
+        """Реванш: новые карты тем же составом. Только хост."""
         nonlocal board, mode, cheat_buf
-        import random as _r
-        seed = _r.randint(1, 999999999)
-        race["host"].start_race(seed)
-        race["seed"] = seed
-        board = build_race_board(seed)
+        race["host"].start_race()
+        board = create_empty_board()
         board["start_time"] = time.time()
+        race_layout(True)
         race["reported"] = False
         race["table"] = []
         race["places"] = None
         cheat_buf = ""
         mode = "race_game"
+
+    def race_host_set_diff(key):
+        """Хост сменил сложность в лобби: себе + всем."""
+        apply_difficulty(key)
+        save_settings()
+        d = DIFFICULTY[key]
+        race["host"].set_difficulty(key, d["rows"], d["cols"], d["mines"])
 
     def launch_minigames():
         """Открыть хаб отдельно, не останавливая текущую партию Сапёра."""
@@ -2099,6 +2181,16 @@ def main():
                         leave_race(race)
                         mode = "race"
                         continue
+                    _ddone = False
+                    if race["role"] == "host":
+                        for key, rc in rects.get("diffs", {}).items():
+                            if rc.collidepoint(mx, my):
+                                if SETTINGS.get("difficulty") != key:
+                                    race_host_set_diff(key)
+                                _ddone = True
+                                break
+                    if _ddone:
+                        continue
                     if (rects.get("start") and race["role"] == "host"
                             and rects["start"].collidepoint(mx, my)):
                         race_start_host()
@@ -2217,21 +2309,25 @@ def main():
                 if t == "welcome":
                     apply_difficulty(ev.get("diff", "normal"))
                     save_settings()
-                    race["seed"] = ev["seed"]
                     race["players"] = ev.get("players", [])
                     race["connecting"] = False
                     mode = "lobby"
                 elif t == "players":
                     race["players"] = ev.get("players", [])
+                elif t == "diff":
+                    # хост сменил сложность: у всех одинаковый размер поля,
+                    # но мины у каждого свои
+                    apply_difficulty(ev.get("diff", "normal"))
+                    save_settings()
                 elif t == "table":
                     race["table"] = ev["rows"]
                     race["players"] = [r["name"] for r in ev["rows"]]
                 elif t == "start":
-                    seed = ev.get("seed") or race["seed"]
-                    race["seed"] = seed
                     race["round"] = ev.get("round", 0)
-                    board = build_race_board(seed)
+                    # своя карта: мины в разных местах у каждого
+                    board = create_empty_board()
                     board["start_time"] = time.time()
+                    race_layout(True)
                     race["reported"] = False
                     race["table"] = []
                     mode = "race_game"
@@ -2254,23 +2350,23 @@ def main():
                     race["role"] = None
                     race["connecting"] = False
 
-        # --- прогресс и финиш гонки ---
+        # --- прогресс и финиш гонки (поле + экран для противника) ---
         if mode == "race_game":
             race["frame"] += 1
-            opened = sum(sum(row) for row in board["opened"])
-            total = ROWS * COLS - MINES
+            _cells, _flags, opened, total = race_board_state(board)
             if not board["game_over"] and race["frame"] % 30 == 0:
                 if race["role"] == "host" and race["host"]:
-                    race["host"].report_self(opened, total)
+                    race["host"].report_self(opened, total, False, -1, _cells, _flags)
                 elif race["role"] == "client" and race["client"]:
-                    race["client"].send_progress(opened, total, race.get("round", 0))
+                    race["client"].send_progress(opened, total, race.get("round", 0),
+                                                _cells, _flags)
             if board["game_over"] and not race["reported"]:
                 race["reported"] = True
                 el = board["elapsed"] if board["won"] else -1
                 if race["role"] == "host" and race["host"]:
-                    race["host"].report_self(opened, total, True, el)
+                    race["host"].report_self(opened, total, True, el, _cells, _flags)
                 elif race["role"] == "client" and race["client"]:
-                    race["client"].send_finish(el, race.get("round", 0))
+                    race["client"].send_finish(el, race.get("round", 0), _cells, _flags)
 
         if mode == "skins":
             rects = draw_skins_menu(canvas, shop_ui, mouse_pos, mouse_down, ticks)
@@ -2288,6 +2384,7 @@ def main():
                          mouse_pos=mouse_pos, mouse_down=mouse_down, ticks=ticks)
             if mode == "race_game":
                 draw_race_hud(canvas, race)
+                draw_race_panel(canvas, race)
         present()
         clock.tick(60)
 

@@ -7,15 +7,19 @@
 
 Протокол (каждая строка — один JSON):
   C->H {"t":"join","name":...}
-  H->C {"t":"welcome","seed":N,"diff":"normal","players":[...]}
+  H->C {"t":"welcome","diff":"normal","players":[...]}
       | {"t":"error","msg":...}
   H->* {"t":"players","players":[...]}      — состав лобби
-  H->* {"t":"start"}                        — старт гонки
-  C->H {"t":"progress","opened":N,"total":M}
-  C->H {"t":"finish","elapsed":SEC}         — SEC<0 значит DNF (взрыв)
-  H->* {"t":"table","rows":[{name,opened,total,finished,elapsed}]}
-  H->* {"t":"result","places":[{name,elapsed}]}  — когда все финишировали
+  H->* {"t":"diff","diff":...}              — хост сменил сложность
+  H->* {"t":"start","round":N}              — старт гонки
+  C->H {"t":"progress","opened":N,"total":M,"round":R,"cells":[[r,c,v]..],"flags":[[r,c]..]}
+  C->H {"t":"finish","elapsed":SEC,"round":R,"cells":[..],"flags":[..]} — SEC<0 это DNF
+  H->* {"t":"table","rows":[{name,opened,total,finished,elapsed,cells,flags}]}
+  H->* {"t":"result","places":[{name,elapsed,opened,total}]} — когда все финишировали
   H->* {"t":"bye"}                          — хост закрыл игру
+
+Карты у всех СВОИ (мины в разных местах, одна сложность).
+Экраны противников транслируются через cells/flags в таблице.
 """
 
 import json
@@ -88,18 +92,17 @@ class RaceHost:
     """Хост гонки. События для главного потока — в self.events (queue.Queue)."""
 
     def __init__(self, name, diff_key):
-        import random as _random
         self.name = name
         self.diff = diff_key
-        self.seed = _random.randint(1, 999999999)
         self.events = queue.Queue()
-        self.players = {}  # name -> {conn, opened, total, finished, elapsed}
+        self.players = {}  # name -> {conn, opened, total, finished, elapsed, cells, flags}
         self.started = False
         self._lock = threading.Lock()
         self._server = None
         self._alive = True
         self.players[name] = {"conn": None, "opened": 0, "total": 0,
-                              "finished": False, "elapsed": -1}
+                              "finished": False, "elapsed": -1,
+                              "cells": [], "flags": []}
         self.round = 0
 
     # -- управление из главного потока --
@@ -119,26 +122,44 @@ class RaceHost:
                 p["opened"] = 0
                 p["finished"] = False
                 p["elapsed"] = -1
+                p["cells"] = []
+                p["flags"] = []
 
-    def start_race(self, seed=None):
-        if seed is not None:
-            with self._lock:
-                self.seed = seed
+    def set_difficulty(self, diff_key, rows, cols, mines):
+        """Хост сменил сложность: обновить тоталы, разослать всем."""
+        with self._lock:
+            self.diff = diff_key
+            total = rows * cols - mines
+            for p in self.players.values():
+                p["total"] = total
+                p["opened"] = 0
+                p["finished"] = False
+                p["elapsed"] = -1
+                p["cells"] = []
+                p["flags"] = []
+        self._broadcast({"t": "diff", "diff": diff_key})
+        self._broadcast_table()
+
+    def start_race(self):
         self.reset_race()
         with self._lock:
             self.started = True
-            sd = self.seed
             rd = self.round
-        self._broadcast({"t": "start", "seed": sd, "round": rd})
+        self._broadcast({"t": "start", "round": rd})
         self._broadcast_table()
 
-    def report_self(self, opened, total, finished=False, elapsed=-1):
+    def report_self(self, opened, total, finished=False, elapsed=-1,
+                    cells=None, flags=None):
         with self._lock:
             me = self.players.get(self.name)
             if me is None:
                 return
             me["opened"] = opened
             me["total"] = total
+            if cells is not None:
+                me["cells"] = cells
+            if flags is not None:
+                me["flags"] = flags
             if finished and not me["finished"]:
                 me["finished"] = True
                 me["elapsed"] = elapsed
@@ -193,8 +214,9 @@ class RaceHost:
                     conn.close()
                     return
                 self.players[name] = {"conn": conn, "opened": 0, "total": 0,
-                                      "finished": False, "elapsed": -1}
-                _send(conn, {"t": "welcome", "seed": self.seed,
+                                      "finished": False, "elapsed": -1,
+                                      "cells": [], "flags": []}
+                _send(conn, {"t": "welcome",
                              "diff": self.diff, "players": sorted(self.players)})
             self.events.put({"t": "peer_joined", "name": name})
             self._broadcast_players()
@@ -243,7 +265,15 @@ class RaceHost:
             if t == "progress":
                 p["opened"] = int(msg.get("opened", 0))
                 p["total"] = int(msg.get("total", 0))
+                if isinstance(msg.get("cells"), list):
+                    p["cells"] = msg["cells"][:400]
+                if isinstance(msg.get("flags"), list):
+                    p["flags"] = msg["flags"][:100]
             elif t == "finish":
+                if isinstance(msg.get("cells"), list):
+                    p["cells"] = msg["cells"][:400]
+                if isinstance(msg.get("flags"), list):
+                    p["flags"] = msg["flags"][:100]
                 if not p["finished"]:
                     p["finished"] = True
                     p["elapsed"] = float(msg.get("elapsed", -1))
@@ -275,7 +305,8 @@ class RaceHost:
 
     def _table_rows(self):
         return [{"name": n, "opened": p["opened"], "total": p["total"],
-                 "finished": p["finished"], "elapsed": p["elapsed"]}
+                 "finished": p["finished"], "elapsed": p["elapsed"],
+                 "cells": p.get("cells", []), "flags": p.get("flags", [])}
                 for n, p in sorted(self.players.items())]
 
     def _broadcast(self, obj):
@@ -339,12 +370,14 @@ class RaceClient:
     def connect(self):
         threading.Thread(target=self._run, daemon=True).start()
 
-    def send_progress(self, opened, total, round=0):
+    def send_progress(self, opened, total, round=0, cells=None, flags=None):
         self._try_send({"t": "progress", "opened": opened, "total": total,
-                        "round": round})
+                        "round": round, "cells": cells or [],
+                        "flags": flags or []})
 
-    def send_finish(self, elapsed, round=0):
-        self._try_send({"t": "finish", "elapsed": elapsed, "round": round})
+    def send_finish(self, elapsed, round=0, cells=None, flags=None):
+        self._try_send({"t": "finish", "elapsed": elapsed, "round": round,
+                        "cells": cells or [], "flags": flags or []})
 
     def stop(self):
         self._alive = False
@@ -384,7 +417,7 @@ class RaceClient:
                 self.events.put({"t": "conn_fail"})
                 conn.close()
                 return
-            self.events.put(hello)  # welcome с seed/diff/players
+            self.events.put(hello)  # welcome с diff/players
             conn.settimeout(0.5)
             buf = b""
             while self._alive:
