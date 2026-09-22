@@ -71,6 +71,7 @@ py minesweeper.py
 - `minesweeper.py` — игра
 - `netplay.py` — сеть для гонки (хост / клиент)
 - `requirements.txt` — зависимость `pygame`
+- `assets/icon.png` — иконка окна (необязательно, положи любую картинку)
 
 ## Новая ветка: Mini Games / крестики-нолики
 

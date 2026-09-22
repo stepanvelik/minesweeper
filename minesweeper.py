@@ -1563,6 +1563,14 @@ def main():
     # Окно растягивается мышкой (RESIZABLE), на Маке это надёжнее
     # exclusive-fullscreen: безрамочное окно + letterbox.
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+    try:  # иконка приложения (положи картинку в assets/icon.png)
+        _icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "assets", "icon.png")
+        if os.path.isfile(_icon_path):
+            _icon = pygame.image.load(_icon_path).convert_alpha()
+            pygame.display.set_icon(pygame.transform.smoothscale(_icon, (32, 32)))
+    except Exception:
+        pass
     canvas = pygame.Surface((WIDTH, HEIGHT))
     canvas_size = (WIDTH, HEIGHT)
     fullscreen = False
