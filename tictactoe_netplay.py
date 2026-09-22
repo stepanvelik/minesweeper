@@ -1,6 +1,7 @@
 """Небольшой TCP-протокол для сетевых крестиков-ноликов в локальной сети."""
 import json
 import queue
+import random
 import socket
 import threading
 
@@ -27,6 +28,7 @@ class Host:
     def __init__(self, name, size=3):
         self.name, self.events, self.conn = name, queue.Queue(), None
         self.size = size
+        self.host_mark = random.choice(("X", "O"))
         self.server, self.alive = None, True
 
     def start(self):
@@ -38,24 +40,29 @@ class Host:
 
     def _accept(self):
         try:
-            self.server.settimeout(12)
             conn, _ = self.server.accept()
-            line = conn.makefile("r", encoding="utf-8").readline()
+            file = conn.makefile("r", encoding="utf-8")
+            line = file.readline()
             hello = json.loads(line)
             if hello.get("t") != "join":
                 raise ValueError("bad handshake")
+            if hello.get("size") != self.size:
+                _send(conn, {"t": "error", "msg": "Board size differs from host"})
+                conn.close()
+                return
             self.conn = conn
             opponent = str(hello.get("name", "Player"))[:16] or "Player"
-            _send(conn, {"t": "welcome", "host": self.name, "size": self.size})
-            self.events.put({"t": "joined", "name": opponent, "size": self.size})
-            self._read(conn)
+            _send(conn, {"t": "welcome", "host": self.name, "size": self.size,
+                         "host_mark": self.host_mark})
+            self.events.put({"t": "joined", "name": opponent, "size": self.size,
+                             "host_mark": self.host_mark})
+            self._read(file)
         except Exception:
             if self.alive:
                 self.events.put({"t": "error", "msg": "Player could not connect"})
 
-    def _read(self, conn):
+    def _read(self, file):
         try:
-            file = conn.makefile("r", encoding="utf-8")
             while self.alive:
                 line = file.readline()
                 if not line:
@@ -91,11 +98,15 @@ class Client:
     def _connect(self):
         try:
             self.conn = socket.create_connection((self.ip, PORT), timeout=6)
-            _send(self.conn, {"t": "join", "name": self.name})
+            _send(self.conn, {"t": "join", "name": self.name, "size": self.size})
             file = self.conn.makefile("r", encoding="utf-8")
             hello = json.loads(file.readline())
+            if hello.get("t") == "error":
+                self.events.put(hello)
+                return
             if hello.get("t") != "welcome": raise ValueError("no welcome")
             self.events.put(hello)
+            self.conn.settimeout(None)  # матч может длиться дольше таймаута подключения
             while self.alive:
                 line = file.readline()
                 if not line: break

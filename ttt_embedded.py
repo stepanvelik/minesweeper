@@ -30,11 +30,12 @@ class TicTacToeScreen:
     """Меню, сольная и Wi-Fi игры. Возвращает ``back`` главному приложению."""
     def __init__(self, ui, settings):
         self.ui, self.settings = ui, settings
-        self.scene, self.kind, self.size = "menu", None, 3
+        self.scene, self.previous_scene, self.kind, self.size = "menu", "menu", None, 3
         self.board, self.turn, self.result, self.line = [], "X", None, ()
-        self.peer, self.role, self.name, self.ip, self.editing = None, None, "Игрок", "", None
+        self.peer, self.role, self.my_mark, self.name, self.ip, self.editing = None, None, None, "Игрок", "", None
         self.status, self.status_until, self.rects = "", 0, {}
         self.skin = settings.get("ttt_skin", "classic")
+        self.votes = set()
 
     def note(self, text, seconds=3):
         self.status, self.status_until = text, time.time() + seconds
@@ -42,7 +43,7 @@ class TicTacToeScreen:
     def close_network(self):
         if self.peer:
             self.peer.stop()
-        self.peer, self.role = None, None
+        self.peer, self.role, self.my_mark, self.votes = None, None, None, set()
 
     def new_game(self, size=None, first="X"):
         if size:
@@ -52,7 +53,7 @@ class TicTacToeScreen:
         self.scene = "game"
 
     def can_play(self):
-        return self.kind != "online" or (self.role == "host" and self.turn == "X") or (self.role == "client" and self.turn == "O")
+        return self.kind != "online" or self.turn == self.my_mark
 
     def send(self, payload):
         if self.peer:
@@ -68,20 +69,27 @@ class TicTacToeScreen:
                 break
             kind = event.get("t")
             if kind == "joined":
-                self.new_game(event.get("size", self.size)); self.note("Соперник подключился. Вы играете X")
+                self.my_mark = event.get("host_mark", "X")
+                self.new_game(event.get("size", self.size)); self.note(f"Соперник подключился. Вы играете {self.my_mark}")
             elif kind == "welcome":
                 remote_size = event.get("size", self.size)
                 if remote_size != self.size:
                     self.note("У хоста выбран другой размер поля"); self.close_network(); self.scene = "menu"
                 else:
-                    self.new_game(remote_size); self.note("Подключено. Вы играете O")
+                    host_mark = event.get("host_mark", "X")
+                    self.my_mark = "O" if host_mark == "X" else "X"
+                    self.new_game(remote_size); self.note(f"Подключено. Вы играете {self.my_mark}")
             elif kind == "move":
                 cell, mark = event.get("cell"), event.get("mark")
                 if isinstance(cell, int) and 0 <= cell < len(self.board) and not self.board[cell] and mark in ("X", "O"):
                     self.board[cell] = mark; self.result, self.line = winner(self.board, self.size)
                     self.turn = "O" if mark == "X" else "X"
             elif kind == "rematch":
-                self.new_game(event.get("size", self.size), event.get("first", "X"))
+                self.my_mark = event.get("my_mark", self.my_mark)
+                self.new_game(event.get("size", self.size), event.get("first", "X")); self.votes = set()
+            elif kind == "vote_rematch" and self.role == "host":
+                self.votes.add("client")
+                self._start_voted_rematch()
             elif kind == "error":
                 self.note(event.get("msg", "Ошибка сети")); self.close_network(); self.scene = "online"
             elif kind == "left" and self.scene == "game":
@@ -109,6 +117,7 @@ class TicTacToeScreen:
             if event.key == pygame.K_ESCAPE:
                 if self.scene == "menu": self.close_network(); return "back"
                 if self.scene == "game": self.close_network(); self.scene = "menu"
+                elif self.scene == "skins": self.scene = self.previous_scene
                 else: self.scene = "menu"
                 self.editing = None
                 return None
@@ -148,10 +157,16 @@ class TicTacToeScreen:
             else:
                 self.peer = network.Client(self._valid_ip(self.ip), self.name or "Игрок", self.size); self.peer.start(); self.role = "client"; self.note("Подключение…", 8)
         elif key == "skin":
-            skins = ["classic", "neon", "warm"]; self.skin = skins[(skins.index(self.skin) + 1) % len(skins)]
-            self.settings["ttt_skin"] = self.skin; self.ui["save"]()
+            self.previous_scene, self.scene = self.scene, "skins"
+        elif key == "skins_back":
+            self.scene = self.previous_scene
         elif key == "again" and self.result:
-            first = "O" if self.turn == "X" else "X"; self.new_game(first); self.send({"t": "rematch", "first": first, "size": self.size})
+            if self.kind == "online":
+                self.votes.add(self.role)
+                if self.role == "client": self.send({"t": "vote_rematch"})
+                else: self._start_voted_rematch()
+            else:
+                self.new_game("X")
         elif key.startswith("cell_") and not self.result and self.can_play():
             cell = int(key.split("_")[1])
             if not self.board[cell]:
@@ -159,6 +174,14 @@ class TicTacToeScreen:
                 if self.kind == "online": self.send({"t": "move", "cell": cell, "mark": mark})
                 else: self._ai_move()
         return None
+
+    def _start_voted_rematch(self):
+        if self.role != "host" or self.votes != {"host", "client"}:
+            return
+        host_mark = random.choice(("X", "O")); self.my_mark = host_mark
+        self.new_game(first="X"); self.votes = set()
+        self.send({"t": "rematch", "first": "X", "size": self.size,
+                   "my_mark": "O" if host_mark == "X" else "X"})
 
     @staticmethod
     def _valid_ip(value):
@@ -170,9 +193,19 @@ class TicTacToeScreen:
         self._network_events(); self.rects = {}; u = self.ui
         surface.fill(u["header"]()); pygame.draw.line(surface, u["gold"](), (0, 72), (width, 72), 2)
         u["text"](surface, "КРЕСТИКИ-НОЛИКИ", 28, u["fg"](), (18, 14), bold=True)
-        skin_rect = pygame.Rect(width - 154, 12, 136, 46)
-        self.rects["skin"] = u["button"](surface, skin_rect.x, skin_rect.y, skin_rect.w, skin_rect.h, "СКИН X/O", active=True, hover=skin_rect.collidepoint(mouse), pressed=down, ticks=ticks)
-        if self.scene == "menu":
+        if self.scene != "skins":
+            skin_rect = pygame.Rect(width - 154, 12, 136, 46)
+            self.rects["skin"] = u["button"](surface, skin_rect.x, skin_rect.y, skin_rect.w, skin_rect.h, "СКИНЫ X/O", active=True, hover=skin_rect.collidepoint(mouse), pressed=down, ticks=ticks)
+        if self.scene == "skins":
+            u["text"](surface, "СКИНЫ КРЕСТИКОВ И НОЛИКОВ", 24, u["fg"](), (width // 2, 120), center=True, bold=True)
+            card = pygame.Rect(width // 2 - 150, 160, 300, 150)
+            pygame.draw.rect(surface, u["button_bg"](), card, border_radius=12)
+            pygame.draw.rect(surface, u["green"](), card, 3, border_radius=12)
+            u["text"](surface, "X   O", 52, u["gold"](), (width // 2, 188), center=True, bold=True)
+            u["text"](surface, "СТАНДАРТНЫЙ", 20, u["fg"](), (width // 2, 262), center=True, bold=True)
+            u["text"](surface, "Новые скины появятся позже", 17, u["muted"](), (width // 2, 336), center=True, bold=True)
+            self._button(surface, "skins_back", "← НАЗАД", width, 384, mouse, down, ticks)
+        elif self.scene == "menu":
             u["text"](surface, "Выберите режим", 28, u["fg"](), (width // 2, 130), center=True, bold=True)
             self._button(surface, "solo", "ОДИНОЧНАЯ ИГРА", width, 190, mouse, down, ticks)
             self._button(surface, "online", "ОНЛАЙН-ИГРА", width, 264, mouse, down, ticks)
@@ -182,16 +215,16 @@ class TicTacToeScreen:
             for index, size in enumerate((3, 4, 5, 6)):
                 x = width // 2 - 214 + (index % 2) * 220; y = 164 + (index // 2) * 76
                 rect = pygame.Rect(x, y, 208, 58); self.rects[f"size_{size}"] = u["button"](surface, x, y, 208, 58, f"{size} × {size}", hover=rect.collidepoint(mouse), pressed=down, ticks=ticks)
-            self._button(surface, "back", "← САПЁР", width, 336, mouse, down, ticks)
+            self._button(surface, "menu", "← НАЗАД", width, 336, mouse, down, ticks)
         elif self.scene == "online":
             u["text"](surface, f"ОНЛАЙН {self.size} × {self.size}", 26, u["fg"](), (width // 2, 115), center=True, bold=True)
             u["text"](surface, f"Ваш IP: {network.lan_ip()}", 18, u["gold"](), (width // 2, 152), center=True, bold=True)
             for key, label, value, y in (("name", "Имя", self.name, 184), ("ip", "IP хоста", self.ip, 246)):
                 rect = pygame.Rect(width // 2 - 210, y, 420, 48); pygame.draw.rect(surface, u["button_bg"](), rect, border_radius=10); pygame.draw.rect(surface, u["gold"]() if self.editing == key else u["border"](), rect, 3 if self.editing == key else 2, border_radius=10); u["text"](surface, value or label, 20, u["fg"]() if value else u["muted"](), (rect.x + 14, rect.y + 12), bold=True); self.rects[key] = rect
             self._pair(surface, "host", "СОЗДАТЬ", "join", "ПОДКЛЮЧИТЬСЯ", width, 320, mouse, down, ticks)
-            self._button(surface, "menu", "НАЗАД", width, 400, mouse, down, ticks)
+            self._button(surface, "menu", "← НАЗАД", width, 400, mouse, down, ticks)
         else:
-            header = "НИЧЬЯ" if self.result == "DRAW" else f"ПОБЕДА: {self.result}" if self.result else ("ВАШ ХОД" if self.can_play() else "ХОД СОПЕРНИКА")
+            header = "НИЧЬЯ" if self.result == "DRAW" else f"ПОБЕДА: {self.result}" if self.result else (f"ВАШ ХОД ({self.my_mark})" if self.can_play() else f"ХОД СОПЕРНИКА ({self.turn})")
             u["text"](surface, header, 25, u["green"]() if self.result else u["gold"](), (width // 2, 98), center=True, bold=True)
             cell = min(64, max(42, (height - 190) // self.size)); total = cell * self.size; ox, oy = (width - total) // 2, 128
             colors = {"classic": ((96,165,250),(248,113,113)), "neon": ((34,211,238),(232,121,249)), "warm": ((251,191,36),(74,222,128))}[self.skin]
@@ -199,7 +232,13 @@ class TicTacToeScreen:
                 rect = pygame.Rect(ox + (i % self.size) * cell, oy + (i // self.size) * cell, cell, cell); pygame.draw.rect(surface, u["button_bg"](), rect); pygame.draw.rect(surface, u["green"]() if i in self.line else u["border"](), rect, 3)
                 if mark: u["text"](surface, mark, int(cell * .63), colors[0] if mark == "X" else colors[1], rect.center, center=True, bold=True)
                 self.rects[f"cell_{i}"] = rect
-            bottom = min(height - 58, oy + total + 16); self._pair(surface, "again", "НОВАЯ ИГРА", "back", "← САПЁР", width, bottom, mouse, down, ticks, disabled=not bool(self.result))
+            bottom = min(height - 58, oy + total + 16)
+            if self.result and self.kind == "online":
+                vote = "ВЫ ПРОГОЛОСОВАЛИ" if self.role in self.votes else "ГОЛОС ЗА РЕВАНШ"
+                self._pair(surface, "again", vote, "menu", "← НАЗАД", width, bottom, mouse, down, ticks)
+                u["text"](surface, f"Голоса: {len(self.votes)}/2", 17, u["muted"](), (width // 2, bottom - 22), center=True, bold=True)
+            else:
+                self._pair(surface, "again", "НОВАЯ ИГРА", "menu", "← НАЗАД", width, bottom, mouse, down, ticks, disabled=not bool(self.result))
         if self.status and time.time() < self.status_until: u["text"](surface, self.status, 17, u["muted"](), (width // 2, height - 22), center=True, bold=True)
 
     def _button(self, surface, key, label, width, y, mouse, down, ticks):
