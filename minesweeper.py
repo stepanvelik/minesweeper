@@ -1137,7 +1137,7 @@ def new_race_state():
     ip = netplay.get_lan_ip() if netplay else "127.0.0.1"
     return {"role": None, "host": None, "client": None, "seed": None,
             "players": [], "table": [], "places": None, "reported": False,
-            "connecting": False, "name": f"Player-{_r.randint(100, 999)}",
+            "connecting": False, "round": 0, "name": f"Player-{_r.randint(100, 999)}",
             "ip": "", "field": None, "msg": "", "msg_until": 0,
             "my_ip": ip, "frame": 0}
 
@@ -1158,6 +1158,21 @@ def leave_race(race):
     race.clear()
     race.update(new_race_state())
     race["name"], race["ip"], race["my_ip"] = seed_keep_name, seed_keep_ip, my_ip
+
+
+def parse_host_ip(text):
+    """Проверка IP перед подключением: IPv4 или localhost.
+    Возвращает (ok, ip). Неверный ввод — сразу ошибка, без вылета."""
+    t = (text or "").strip().lower()
+    if t in ("", "localhost"):
+        return True, "127.0.0.1"
+    parts = t.split(".")
+    if len(parts) != 4:
+        return False, ""
+    for p in parts:
+        if not p.isdigit() or not p or not 0 <= int(p) <= 255:
+            return False, ""
+    return True, t
 
 
 def draw_text_field(screen, x, y, w, h, text, active, placeholder=""):
@@ -1197,7 +1212,8 @@ def draw_race_menu(screen, race, mouse_pos, mouse_down, ticks):
                           pressed=mouse_down, ticks=ticks)
     jb = draw_hint_button(screen, 318, 218, 304, 54, "JOIN [J]",
                           hover=join_b.collidepoint(mouse_pos),
-                          pressed=mouse_down, ticks=ticks)
+                          pressed=mouse_down, ticks=ticks,
+                          disabled=race.get("connecting", False))
     msg = get_race_message(race)
     if msg:
         draw_text_crisp(screen, msg, FONT_MSG, (248, 113, 113), (18, 292), bold=True)
@@ -1404,9 +1420,14 @@ def main():
         if netplay is None:
             race_message(race, "netplay.py missing")
             return
+        if race.get("connecting"):
+            return  # уже подключаемся, ждём ответ
+        ok, ip = parse_host_ip(race["ip"])
+        if not ok:
+            race_message(race, "IP введён неверно. Пример: 192.168.1.5")
+            return
         name = race["name"].strip() or "Player"
         race["name"] = name
-        ip = race["ip"].strip() or "127.0.0.1"
         c = netplay.RaceClient(ip, name)
         race["client"] = c
         race["role"] = "client"
@@ -1481,8 +1502,8 @@ def main():
                                     ch.isalnum() or ch in "_- "):
                                 race[fld] += ch
                             elif fld == "ip" and len(race[fld]) < 15 and (
-                                    ch.isdigit() or ch == "."):
-                                race[fld] += ch
+                                    ch.isdigit() or ch == "." or ch.isalpha()):
+                                race[fld] += ch.lower()
                     else:
                         if k == pygame.K_ESCAPE:
                             mode = "game"
@@ -1702,6 +1723,7 @@ def main():
                 elif t == "start":
                     seed = ev.get("seed") or race["seed"]
                     race["seed"] = seed
+                    race["round"] = ev.get("round", 0)
                     board = build_race_board(seed)
                     board["start_time"] = time.time()
                     race["reported"] = False
@@ -1715,7 +1737,7 @@ def main():
                     leave_race(race)
                     mode = "race"
                 elif t == "conn_fail":
-                    race_message(race, "No connection - check IP")
+                    race_message(race, "No connection - wrong IP or host offline")
                     race["client"] = None
                     race["role"] = None
                     race["connecting"] = False
@@ -1734,14 +1756,14 @@ def main():
                 if race["role"] == "host" and race["host"]:
                     race["host"].report_self(opened, total)
                 elif race["role"] == "client" and race["client"]:
-                    race["client"].send_progress(opened, total)
+                    race["client"].send_progress(opened, total, race.get("round", 0))
             if board["game_over"] and not race["reported"]:
                 race["reported"] = True
                 el = board["elapsed"] if board["won"] else -1
                 if race["role"] == "host" and race["host"]:
                     race["host"].report_self(opened, total, True, el)
                 elif race["role"] == "client" and race["client"]:
-                    race["client"].send_finish(el)
+                    race["client"].send_finish(el, race.get("round", 0))
 
         if mode == "skins":
             rects = draw_skins_menu(canvas, mouse_pos, mouse_down, ticks)

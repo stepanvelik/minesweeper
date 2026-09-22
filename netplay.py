@@ -100,6 +100,7 @@ class RaceHost:
         self._alive = True
         self.players[name] = {"conn": None, "opened": 0, "total": 0,
                               "finished": False, "elapsed": -1}
+        self.round = 0
 
     # -- управление из главного потока --
     def serve(self):
@@ -109,14 +110,27 @@ class RaceHost:
         self._server.listen(8)
         threading.Thread(target=self._accept_loop, daemon=True).start()
 
+    def reset_race(self):
+        """Сбросить прогресс/финиши (рематч). Номер раунда растёт,
+        опоздавшие пакеты прошлого раунда игнорируются."""
+        with self._lock:
+            self.round += 1
+            for p in self.players.values():
+                p["opened"] = 0
+                p["finished"] = False
+                p["elapsed"] = -1
+
     def start_race(self, seed=None):
         if seed is not None:
             with self._lock:
                 self.seed = seed
+        self.reset_race()
         with self._lock:
             self.started = True
             sd = self.seed
-        self._broadcast({"t": "start", "seed": sd})
+            rd = self.round
+        self._broadcast({"t": "start", "seed": sd, "round": rd})
+        self._broadcast_table()
 
     def report_self(self, opened, total, finished=False, elapsed=-1):
         with self._lock:
@@ -224,6 +238,8 @@ class RaceHost:
             p = self.players.get(name)
             if p is None:
                 return
+            if msg.get("round", 0) != self.round:
+                return  # пакет прошлой игры (рематч уже идёт)
             if t == "progress":
                 p["opened"] = int(msg.get("opened", 0))
                 p["total"] = int(msg.get("total", 0))
@@ -323,11 +339,12 @@ class RaceClient:
     def connect(self):
         threading.Thread(target=self._run, daemon=True).start()
 
-    def send_progress(self, opened, total):
-        self._try_send({"t": "progress", "opened": opened, "total": total})
+    def send_progress(self, opened, total, round=0):
+        self._try_send({"t": "progress", "opened": opened, "total": total,
+                        "round": round})
 
-    def send_finish(self, elapsed):
-        self._try_send({"t": "finish", "elapsed": elapsed})
+    def send_finish(self, elapsed, round=0):
+        self._try_send({"t": "finish", "elapsed": elapsed, "round": round})
 
     def stop(self):
         self._alive = False
@@ -346,7 +363,7 @@ class RaceClient:
 
     def _run(self):
         try:
-            conn = socket.create_connection((self.host_ip, PORT), timeout=8)
+            conn = socket.create_connection((self.host_ip, PORT), timeout=5)
         except Exception:
             self.events.put({"t": "conn_fail"})
             return
