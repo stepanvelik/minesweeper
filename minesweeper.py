@@ -118,13 +118,17 @@ SETTINGS_FILE = "skins_settings.json"
 SETTINGS = {"theme": "dark", "bomb_skin": "fuse", "flag_skin": "wave",
             "difficulty": "normal", "points": 0, "lang": "ru",
             "owned_bombs": ["fuse"], "owned_flags": ["wave"]}
-BOMB_SKINS = ["fuse", "classic", "neon"]
-FLAG_SKINS = ["wave", "triangle", "pirate"]
-BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon"}
-FLAG_NAMES = {"wave": "Wave", "triangle": "Classic", "pirate": "Pirate"}
+BOMB_SKINS = ["fuse", "classic", "neon", "gold", "robot", "aqua"]
+FLAG_SKINS = ["wave", "triangle", "pirate", "star", "heart"]
+BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon",
+              "gold": "Gold", "robot": "Robot", "aqua": "Aqua"}
+FLAG_NAMES = {"wave": "Wave", "triangle": "Classic", "pirate": "Pirate",
+              "star": "Star", "heart": "Heart"}
 # цены магазина: базовые скины бесплатны
 SKIN_PRICES = {"fuse": 0, "classic": 150, "neon": 300,
-               "wave": 0, "triangle": 150, "pirate": 300}
+               "gold": 500, "robot": 400, "aqua": 250,
+               "wave": 0, "triangle": 150, "pirate": 300,
+               "star": 200, "heart": 250}
 # сообщение магазина (показывается в меню)
 _SHOP_MSG = {"text": "", "until": 0}
 
@@ -225,7 +229,7 @@ STRINGS = {
         "shop_title": "SHOP & LEVEL", "back": "BACK",
         "level_hdr": "LEVEL (win pts)", "theme_hdr": "THEME  [T]",
         "dark": "DARK", "light": "LIGHT", "bombs": "BOMBS", "flags": "FLAGS",
-        "shop_footer": "Win levels for pts - S / Esc back",
+        "shop_footer": "Win levels - Tab tabs - S/Esc back",
         "bought": "Bought {n}! -{p} pts",
         "need_pts": "Need {n} more pts - win levels!",
         "msg_shield_saved": "Shield saved! Mine defused",
@@ -278,7 +282,7 @@ STRINGS = {
         "shop_title": "МАГАЗИН", "back": "НАЗАД",
         "level_hdr": "УРОВЕНЬ (очки)", "theme_hdr": "ТЕМА  [T]",
         "dark": "ТЁМНАЯ", "light": "СВЕТЛАЯ", "bombs": "БОМБЫ", "flags": "ФЛАЖКИ",
-        "shop_footer": "Очки — за победы. S / Esc — назад",
+        "shop_footer": "Очки — за победы. Tab — вкладки. S/Esc — назад",
         "bought": "Куплено: {n}! -{p} оч.",
         "need_pts": "Нужно ещё {n} оч. — выигрывай!",
         "msg_shield_saved": "Щит спас! Мина обезврежена",
@@ -322,8 +326,10 @@ STRINGS = {
     },
 }
 MEDALS = {"en": ["1st", "2nd", "3rd"], "ru": ["1-е", "2-е", "3-е"]}
-BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон"}
-FLAG_RU = {"wave": "Волна", "triangle": "Классика", "pirate": "Пират"}
+BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон",
+           "gold": "Золото", "robot": "Робот", "aqua": "Аква"}
+FLAG_RU = {"wave": "Волна", "triangle": "Классика", "pirate": "Пират",
+           "star": "Звезда", "heart": "Сердце"}
 
 
 def T(key):
@@ -488,6 +494,16 @@ def _make_bomb_fuse(S):
     return surf
 
 
+def _star_points(cx, cy, r_out, r_in, n=5, rot=-90):
+    import math
+    pts = []
+    for k in range(2 * n):
+        r = r_out if k % 2 == 0 else r_in
+        a = math.radians(rot + k * 180 / n)
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+
 def _make_bomb_classic(S):
     """Скин Classic: шар с шипами как в классическом Сапёре."""
     import math
@@ -522,6 +538,78 @@ def _make_bomb_neon(S):
     pygame.draw.circle(surf, (255, 255, 255, 235),
                        (int(cx - R * 0.35), int(cy - R * 0.38)), int(R * 0.16))
     pygame.draw.circle(surf, (0, 255, 255), (cx, cy), R, 5)
+    return surf
+
+
+def _make_bomb_gold(S):
+    """Скин Gold: золотая бомба премиум."""
+    surf = pygame.Surface((S, S), pygame.SRCALPHA)
+    cx, cy, R = S // 2, int(S * 0.54), int(S * 0.30)
+    pygame.draw.circle(surf, (0, 0, 0, 60), (cx + 6, cy + 10), R)
+    for i in range(R, 0, -1):
+        t = i / R
+        c = (int(120 + 110 * (1 - t)), int(80 + 80 * (1 - t)), 20)
+        pygame.draw.circle(surf, c, (cx, cy), i)
+    pygame.draw.circle(surf, (230, 180, 60), (cx, cy), R)
+    pygame.draw.circle(surf, (120, 80, 10), (cx, cy), R, 4)
+    pygame.draw.circle(surf, (255, 255, 255, 235),
+                       (int(cx - R * 0.35), int(cy - R * 0.38)), int(R * 0.24))
+    # искорки
+    for sx, sy, sr in ((cx + R * 0.5, cy + R * 0.3, 9), (cx - R * 0.55, cy + R * 0.45, 7)):
+        pygame.draw.polygon(surf, (255, 250, 220),
+                            [(sx - sr, sy), (sx, sy - sr), (sx + sr, sy), (sx, sy + sr)])
+    return surf
+
+
+def _make_bomb_robot(S):
+    """Скин Robot: голова робота с горящими глазами."""
+    surf = pygame.Surface((S, S), pygame.SRCALPHA)
+    cx = S // 2
+    # антенна
+    pygame.draw.line(surf, (150, 160, 175), (cx, 52), (cx, 30), 8)
+    pygame.draw.circle(surf, (248, 113, 113), (cx, 26), 12)
+    pygame.draw.circle(surf, (255, 200, 200), (cx, 26), 5)
+    # уши-болты
+    pygame.draw.rect(surf, (90, 100, 115), (cx - 78, 108, 18, 34), border_radius=5)
+    pygame.draw.rect(surf, (90, 100, 115), (cx + 60, 108, 18, 34), border_radius=5)
+    # голова
+    head = pygame.Rect(cx - 62, 66, 124, 110)
+    pygame.draw.rect(surf, (0, 0, 0, 60), (head.x + 5, head.y + 8, head.w, head.h),
+                     border_radius=22)
+    pygame.draw.rect(surf, (130, 140, 155), head, border_radius=22)
+    pygame.draw.rect(surf, (60, 68, 80), head, 5, border_radius=22)
+    pygame.draw.rect(surf, (180, 190, 205), (head.x + 10, head.y + 10, 20, head.h - 20),
+                     border_radius=8)
+    # глаза
+    for ex in (cx - 30, cx + 30):
+        pygame.draw.circle(surf, (0, 255, 255, 90), (ex, 112), 20)
+        pygame.draw.circle(surf, (0, 220, 230), (ex, 112), 14)
+        pygame.draw.circle(surf, (255, 255, 255), (ex, 112), 6)
+    # рот-решётка
+    for i in range(3):
+        y = 140 + i * 12
+        pygame.draw.line(surf, (60, 68, 80), (cx - 26, y), (cx + 26, y), 5)
+    return surf
+
+
+def _make_bomb_aqua(S):
+    """Скин Aqua: водяная бомба с пузырьками."""
+    surf = pygame.Surface((S, S), pygame.SRCALPHA)
+    cx, cy, R = S // 2, int(S * 0.54), int(S * 0.30)
+    for rad, col in ((R + 26, (120, 200, 255, 45)), (R + 12, (120, 200, 255, 90))):
+        pygame.draw.circle(surf, col, (cx, cy), rad)
+    pygame.draw.circle(surf, (0, 0, 0, 50), (cx + 6, cy + 10), R)
+    for i in range(R, 0, -1):
+        t = i / R
+        c = (int(40 + 60 * (1 - t)), int(130 + 70 * (1 - t)), 255, 220)
+        pygame.draw.circle(surf, c, (cx, cy), i)
+    # пузырьки
+    for bx, by, br in ((cx - 18, cy + 10, 10), (cx + 12, cy - 6, 7), (cx + 2, cy + 24, 5)):
+        pygame.draw.circle(surf, (255, 255, 255, 200), (bx, by), br)
+        pygame.draw.circle(surf, (255, 255, 255, 220), (bx, by), br, 2)
+    pygame.draw.circle(surf, (255, 255, 255, 235),
+                       (int(cx - R * 0.35), int(cy - R * 0.38)), int(R * 0.16))
+    pygame.draw.circle(surf, (150, 220, 255), (cx, cy), R, 4)
     return surf
 
 
@@ -577,12 +665,50 @@ def get_bomb_image(size=None, skin=None):
         surf = _make_bomb_classic(S)
     elif skin == "neon":
         surf = _make_bomb_neon(S)
+    elif skin == "gold":
+        surf = _make_bomb_gold(S)
+    elif skin == "robot":
+        surf = _make_bomb_robot(S)
+    elif skin == "aqua":
+        surf = _make_bomb_aqua(S)
     else:
         surf = _make_bomb_fuse(S)
     small = pygame.transform.smoothscale(surf, (target, target))
     _BOMB_CACHE[key] = small
     _BOMB_IMG = small
     return small
+
+
+def _make_flag_star(S):
+    """Скин Star: золотая звезда на древке."""
+    surf = pygame.Surface((S, S), pygame.SRCALPHA)
+    pygame.draw.rect(surf, (30, 30, 30), (S // 2 - 40, S - 40, 80, 16), border_radius=5)
+    pole_x = S // 2 - 10
+    pygame.draw.rect(surf, (60, 60, 65), (pole_x - 7, 30, 14, S - 65), border_radius=5)
+    pygame.draw.rect(surf, (180, 180, 185), (pole_x - 7, 30, 5, S - 65), border_radius=3)
+    pygame.draw.circle(surf, (220, 220, 230), (pole_x, 28), 10)
+    star = _star_points(pole_x + 52, 105, 46, 20)
+    pygame.draw.polygon(surf, (245, 158, 11), star)
+    pygame.draw.polygon(surf, (150, 95, 5), star, 4)
+    pygame.draw.circle(surf, (255, 230, 170), (pole_x + 40, 90), 8)
+    return surf
+
+
+def _make_flag_heart(S):
+    """Скин Heart: красное сердце на древке."""
+    surf = pygame.Surface((S, S), pygame.SRCALPHA)
+    pygame.draw.rect(surf, (30, 30, 30), (S // 2 - 40, S - 40, 80, 16), border_radius=5)
+    pole_x = S // 2 - 10
+    pygame.draw.rect(surf, (60, 60, 65), (pole_x - 7, 30, 14, S - 65), border_radius=5)
+    pygame.draw.rect(surf, (180, 180, 185), (pole_x - 7, 30, 5, S - 65), border_radius=3)
+    pygame.draw.circle(surf, (220, 220, 230), (pole_x, 28), 10)
+    hx, hy, r = pole_x + 52, 92, 24
+    pygame.draw.circle(surf, (220, 30, 50), (hx - r // 2, hy), r // 2 + 6)
+    pygame.draw.circle(surf, (220, 30, 50), (hx + r // 2, hy), r // 2 + 6)
+    pygame.draw.polygon(surf, (220, 30, 50),
+                        [(hx - r - 2, hy + 6), (hx + r + 2, hy + 6), (hx, hy + r + 12)])
+    pygame.draw.circle(surf, (255, 120, 130), (hx - 12, hy - 8), 6)
+    return surf
 
 
 def _make_flag_wave(S):
@@ -666,6 +792,10 @@ def get_flag_image(size=None, skin=None):
         surf = _make_flag_triangle(S)
     elif skin == "pirate":
         surf = _make_flag_pirate(S)
+    elif skin == "star":
+        surf = _make_flag_star(S)
+    elif skin == "heart":
+        surf = _make_flag_heart(S)
     else:
         surf = _make_flag_wave(S)
     small = pygame.transform.smoothscale(surf, (target, target))
@@ -1250,8 +1380,8 @@ def skin_card_label(kind, skin):
     return f"{SKIN_PRICES.get(skin, 0)} {T('pts')}"
 
 
-def draw_skins_menu(screen, mouse_pos=(0, 0), mouse_down=False, ticks=0):
-    """Экран магазина: уровень, тема, скины за очки. Возвращает rects для кликов."""
+def draw_skins_menu(screen, shop_ui, mouse_pos=(0, 0), mouse_down=False, ticks=0):
+    """Магазин с вкладками: скины сеткой, ниже уровень и тема."""
     screen.fill(HEADER_BG)
     pygame.draw.line(screen, GOLD, (0, 0), (WIDTH, 0), 2)
     draw_text_crisp(screen, T("shop_title"), FONT_INFO, FG, (18, 12), bold=True)
@@ -1260,66 +1390,75 @@ def draw_skins_menu(screen, mouse_pos=(0, 0), mouse_down=False, ticks=0):
     back = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, T("back"),
                             hover=pygame.Rect(WIDTH - 150, 10, 132, 48).collidepoint(mouse_pos),
                             pressed=mouse_down, ticks=ticks)
+    rects = {"back": back}
 
-    # уровни сложности (размер поля + награда)
-    draw_text_crisp(screen, T("level_hdr"), FONT_BTN, MUTED, (18, 84), bold=True)
+    # вкладки (Tab тоже переключает)
+    tab = shop_ui.get("tab", "bombs")
+    tw = (WIDTH - 36 - 12) // 2
+    tb0 = pygame.Rect(18, 86, tw, 46)
+    tb1 = pygame.Rect(18 + tw + 12, 86, tw, 46)
+    rects["tab_bombs"] = draw_hint_button(
+        screen, 18, 86, tw, 46, T("bombs"), active=tab == "bombs",
+        hover=tb0.collidepoint(mouse_pos), pressed=mouse_down, ticks=ticks)
+    rects["tab_flags"] = draw_hint_button(
+        screen, 18 + tw + 12, 86, tw, 46, T("flags"), active=tab == "flags",
+        hover=tb1.collidepoint(mouse_pos), pressed=mouse_down, ticks=ticks)
+
+    # сетка скинов активной вкладки
+    kind = "bomb" if tab == "bombs" else "flag"
+    items = BOMB_SKINS if tab == "bombs" else FLAG_SKINS
+    owned_key = "owned_bombs" if tab == "bombs" else "owned_flags"
+    sel_key = "bomb_skin" if tab == "bombs" else "flag_skin"
+    get_img = get_bomb_image if tab == "bombs" else get_flag_image
+    cols, cw, ch, gap, y0 = 3, (WIDTH - 36 - 24) // 3, 148, 12, 150
+    rects["cards"] = {}
+    for i, sk in enumerate(items):
+        row, col = i // cols, i % cols
+        x, y = 18 + col * (cw + gap), y0 + row * (ch + gap)
+        img = get_img(min(88, cw - 16), sk)
+        owned = sk in SETTINGS.get(owned_key, [])
+        base = draw_skin_card(screen, x, y, cw, ch, img, skin_card_label(kind, sk),
+                              selected=SETTINGS.get(sel_key) == sk,
+                              hover=pygame.Rect(x, y, cw, ch).collidepoint(mouse_pos),
+                              pressed=mouse_down, ticks=ticks, locked=not owned)
+        rects["cards"][sk] = base
+
+    rows = (len(items) + cols - 1) // cols
+    gy = y0 + rows * (ch + gap) + 14
+
+    # уровень и тема — компактно внизу
+    draw_text_crisp(screen, T("level_hdr"), FONT_BTN, MUTED, (18, gy), bold=True)
     level_rects = {}
     lw = (WIDTH - 36 - 24) // 3
     for i, key in enumerate(DIFF_ORDER):
         x = 18 + i * (lw + 12)
-        d = DIFFICULTY[key]
-        base = pygame.Rect(x, 112, lw, 50)
-        btn = draw_hint_button(screen, x, 112, lw, 50, diff_label(key),
-                               active=SETTINGS.get("difficulty") == key,
-                               hover=base.collidepoint(mouse_pos),
-                               pressed=mouse_down, ticks=ticks, fontsize=18)
-        level_rects[key] = btn
-
-    draw_text_crisp(screen, T("theme_hdr"), FONT_BTN, MUTED, (18, 176), bold=True)
-    td_base = pygame.Rect(18, 204, 304, 50)
-    tl_base = pygame.Rect(318, 204, 304, 50)
-    td = draw_hint_button(screen, 18, 204, 304, 50, T("dark"),
-                          active=SETTINGS.get("theme") == "dark",
-                          hover=td_base.collidepoint(mouse_pos),
-                          pressed=mouse_down, ticks=ticks)
-    tl = draw_hint_button(screen, 318, 204, 304, 50, T("light"),
-                          active=SETTINGS.get("theme") == "light",
-                          hover=tl_base.collidepoint(mouse_pos),
-                          pressed=mouse_down, ticks=ticks)
-
-    draw_text_crisp(screen, T("bombs"), FONT_BTN, MUTED, (18, 268), bold=True)
-    bomb_rects = {}
-    _n = len(BOMB_SKINS)
-    _cw = (WIDTH - 36 - 12 * (_n - 1)) // _n
-    for i, sk in enumerate(BOMB_SKINS):
-        x = 18 + i * (_cw + 12)
-        img = get_bomb_image(min(92, _cw - 16), sk)
-        owned = sk in SETTINGS.get("owned_bombs", ["fuse"])
-        base = draw_skin_card(screen, x, 296, _cw, 162, img, skin_card_label("bomb", sk),
-                              selected=SETTINGS.get("bomb_skin") == sk,
-                              hover=pygame.Rect(x, 296, _cw, 162).collidepoint(mouse_pos),
-                              pressed=mouse_down, ticks=ticks, locked=not owned)
-        bomb_rects[sk] = base
-
-    draw_text_crisp(screen, T("flags"), FONT_BTN, MUTED, (18, 472), bold=True)
-    flag_rects = {}
-    for i, sk in enumerate(FLAG_SKINS):
-        x = 18 + i * (196 + 12)
-        img = get_flag_image(92, sk)
-        owned = sk in SETTINGS.get("owned_flags", ["wave"])
-        base = draw_skin_card(screen, x, 500, 196, 162, img, skin_card_label("flag", sk),
-                              selected=SETTINGS.get("flag_skin") == sk,
-                              hover=pygame.Rect(x, 500, 196, 162).collidepoint(mouse_pos),
-                              pressed=mouse_down, ticks=ticks, locked=not owned)
-        flag_rects[sk] = base
+        base = pygame.Rect(x, gy + 28, lw, 46)
+        level_rects[key] = draw_hint_button(
+            screen, x, gy + 28, lw, 46, diff_label(key),
+            active=SETTINGS.get("difficulty") == key,
+            hover=base.collidepoint(mouse_pos),
+            pressed=mouse_down, ticks=ticks, fontsize=18)
+    rects["levels"] = level_rects
+    ty = gy + 28 + 46 + 12
+    draw_text_crisp(screen, T("theme_hdr"), FONT_BTN, MUTED, (18, ty), bold=True)
+    td_base = pygame.Rect(18, ty + 28, 304, 46)
+    tl_base = pygame.Rect(318, ty + 28, 304, 46)
+    rects["theme_dark"] = draw_hint_button(
+        screen, 18, ty + 28, 304, 46, T("dark"),
+        active=SETTINGS.get("theme") == "dark",
+        hover=td_base.collidepoint(mouse_pos), pressed=mouse_down, ticks=ticks)
+    rects["theme_light"] = draw_hint_button(
+        screen, 318, ty + 28, 304, 46, T("light"),
+        active=SETTINGS.get("theme") == "light",
+        hover=tl_base.collidepoint(mouse_pos), pressed=mouse_down, ticks=ticks)
 
     shop_msg = get_shop_message()
+    fy = ty + 28 + 46 + 16
     if shop_msg:
-        draw_text_crisp(screen, shop_msg, FONT_MSG, GOLD_LIGHT, (18, 682), bold=True)
+        draw_text_crisp(screen, shop_msg, FONT_MSG, GOLD_LIGHT, (18, fy), bold=True)
     else:
-        draw_text_crisp(screen, T("shop_footer"), FONT_MSG, MUTED, (18, 682), bold=True)
-    return {"back": back, "theme_dark": td, "theme_light": tl,
-            "levels": level_rects, "bombs": bomb_rects, "flags": flag_rects}
+        draw_text_crisp(screen, T("shop_footer"), FONT_MSG, MUTED, (18, fy), bold=True)
+    return rects
 
 
 def draw_settings_menu(screen, fullscreen, sui, mouse_pos=(0, 0), mouse_down=False, ticks=0):
@@ -1671,6 +1810,7 @@ def main():
     race = new_race_state()
     settings_from = "game"
     settings_ui = {"reset_arm": 0.0, "reset_done": 0.0}
+    shop_ui = {"tab": "bombs"}
 
     def race_host_game():
         nonlocal board, mode
@@ -1835,6 +1975,8 @@ def main():
                 elif mode == "skins":
                     if k == pygame.K_ESCAPE:
                         mode = "game"
+                    elif k == pygame.K_TAB:
+                        shop_ui["tab"] = "flags" if shop_ui.get("tab") == "bombs" else "bombs"
                     elif hk(event, "s"):
                         mode = "game"
                     elif hk(event, "c"):
@@ -1976,6 +2118,12 @@ def main():
                     if rects.get("back") and rects["back"].collidepoint(mx, my):
                         mode = "game"
                         continue
+                    if rects.get("tab_bombs") and rects["tab_bombs"].collidepoint(mx, my):
+                        shop_ui["tab"] = "bombs"
+                        continue
+                    if rects.get("tab_flags") and rects["tab_flags"].collidepoint(mx, my):
+                        shop_ui["tab"] = "flags"
+                        continue
                     if rects.get("theme_dark") and rects["theme_dark"].collidepoint(mx, my):
                         apply_theme("dark")
                         save_settings()
@@ -1997,13 +2145,10 @@ def main():
                             break
                     if _handled:
                         continue
-                    for sk, rc in rects.get("bombs", {}).items():
+                    _kind = "bomb" if shop_ui.get("tab", "bombs") == "bombs" else "flag"
+                    for sk, rc in rects.get("cards", {}).items():
                         if rc.collidepoint(mx, my):
-                            buy_or_select("bomb", sk)
-                            break
-                    for sk, rc in rects.get("flags", {}).items():
-                        if rc.collidepoint(mx, my):
-                            buy_or_select("flag", sk)
+                            buy_or_select(_kind, sk)
                             break
                     continue
                 if mode == "game" and rects["face"] and rects["face"].collidepoint(mx, my):
@@ -2128,7 +2273,7 @@ def main():
                     race["client"].send_finish(el, race.get("round", 0))
 
         if mode == "skins":
-            rects = draw_skins_menu(canvas, mouse_pos, mouse_down, ticks)
+            rects = draw_skins_menu(canvas, shop_ui, mouse_pos, mouse_down, ticks)
         elif mode == "settings":
             rects = draw_settings_menu(canvas, fullscreen, settings_ui,
                                        mouse_pos, mouse_down, ticks)
