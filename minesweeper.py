@@ -10,6 +10,7 @@
 - 2 — подсказка: найти мину (3 шт)
 - 3 — бонус-щит от взрыва (1 шт)
 - S — меню магазина/уровней, T — светлая/тёмная тема, Esc — назад
+- Esc/C — настройки (язык RU/EN, тема, уровень, экран, сброс прогресса)
 - G — Wi-Fi гонка (кто быстрее на одинаковой карте), R — новая игра
 - F / F11 — полноэкранный режим
 - В финале гонки: время каждого; хост жмёт REMATCH [Space] для реванша.
@@ -35,9 +36,15 @@ except Exception:
 # --- Настройки (высокое разрешение, чёткий текст) ---
 # Уровни сложности: размер поля и награда за победу
 DIFFICULTY = {
-    "easy": {"rows": 8, "cols": 8, "mines": 10, "reward": 100, "label": "EASY 8x8 +100"},
-    "normal": {"rows": 10, "cols": 10, "mines": 15, "reward": 250, "label": "NORMAL 10x10 +250"},
-    "hard": {"rows": 14, "cols": 14, "mines": 40, "reward": 600, "label": "HARD 14x14 +600"},
+    "easy": {"rows": 8, "cols": 8, "mines": 10, "reward": 100,
+             "label": "EASY 8x8 +100", "label_ru": "ЛЕГКО 8x8 +100",
+             "short": "EASY", "short_ru": "ЛЕГКО"},
+    "normal": {"rows": 10, "cols": 10, "mines": 15, "reward": 250,
+               "label": "NORMAL 10x10 +250", "label_ru": "НОРМА 10x10 +250",
+               "short": "NORMAL", "short_ru": "НОРМА"},
+    "hard": {"rows": 14, "cols": 14, "mines": 40, "reward": 600,
+             "label": "HARD 14x14 +600", "label_ru": "СЛОЖНО 14x14 +600",
+             "short": "HARD", "short_ru": "СЛОЖНО"},
 }
 DIFF_ORDER = ["easy", "normal", "hard"]
 ROWS, COLS, MINES = 10, 10, 15
@@ -106,7 +113,7 @@ del _k, _v
 # --- Скины, очки и настройки (сохраняются в файл) ---
 SETTINGS_FILE = "skins_settings.json"
 SETTINGS = {"theme": "dark", "bomb_skin": "fuse", "flag_skin": "wave",
-            "difficulty": "normal", "points": 0,
+            "difficulty": "normal", "points": 0, "lang": "ru",
             "owned_bombs": ["fuse"], "owned_flags": ["wave"]}
 BOMB_SKINS = ["fuse", "classic", "neon"]
 FLAG_SKINS = ["wave", "triangle", "pirate"]
@@ -144,6 +151,8 @@ def load_settings():
                 SETTINGS["flag_skin"] = data["flag_skin"]
             if data.get("difficulty") in DIFFICULTY:
                 SETTINGS["difficulty"] = data["difficulty"]
+            if data.get("lang") in ("ru", "en"):
+                SETTINGS["lang"] = data["lang"]
             if isinstance(data.get("points"), int) and data["points"] >= 0:
                 SETTINGS["points"] = data["points"]
             if isinstance(data.get("owned_bombs"), list):
@@ -194,6 +203,150 @@ def toggle_theme():
     save_settings()
 
 
+def set_lang(lang):
+    if lang in ("ru", "en"):
+        SETTINGS["lang"] = lang
+        save_settings()
+
+
+# --- Переводы RU/EN ---
+STRINGS = {
+    "en": {
+        "mines": "MINES", "time": "TIME", "sec": "s", "pts": "PTS",
+        "save": "SAVE", "mine": "MINE", "shield": "SHIELD", "shield_on": "SHIELD ON",
+        "hint_line": "LMB-3x3 RMB-flag R Esc",
+        "perfect": "PERFECT! +{aw}pts ({el}s)! Press R",
+        "win": "WIN +{aw}pts ({el}s)! Press R",
+        "boom": "BOOM! Press R",
+        "skins": "SKINS [S]", "race": "RACE [G]",
+        "shop_title": "SHOP & LEVEL", "back": "BACK",
+        "level_hdr": "LEVEL (win pts)", "theme_hdr": "THEME  [T]",
+        "dark": "DARK", "light": "LIGHT", "bombs": "BOMBS", "flags": "FLAGS",
+        "shop_footer": "Win levels for pts - S / Esc back",
+        "bought": "Bought {n}! -{p} pts",
+        "need_pts": "Need {n} more pts - win levels!",
+        "msg_shield_saved": "Shield saved! Mine defused",
+        "msg_bonus_safe": "Bonus: +1 safe move!",
+        "msg_bonus_mine": "Bonus: +1 mine finder!",
+        "msg_no_safe": "No safe hints left",
+        "msg_no_safe_cells": "No safe cells",
+        "msg_safe_open": "Safe opened ({r},{c})",
+        "msg_no_mine_hint": "No mine-finder hints",
+        "msg_all_flagged": "All mines flagged",
+        "msg_mine_marked": "Mine flagged ({r},{c})",
+        "msg_shield_off": "Shield off", "msg_no_shield": "No shields",
+        "msg_shield_on": "Shield ON - blocks 1 blast",
+        "you": "(YOU)",
+        "race_title": "WI-FI RACE",
+        "race_sub": "Same map for all - fastest wins!",
+        "my_ip": "My IP:", "name_": "Name:", "host_ip": "Host IP:",
+        "host_btn": "HOST GAME [H]", "join_btn": "JOIN [J]",
+        "race_hint": "Host shares IP - joiners type it. Esc - back",
+        "lobby": "LOBBY", "tell_ip": "Tell friends your IP:",
+        "wait_host": "Waiting for host START...",
+        "start_btn": "START [Space]", "quit": "QUIT",
+        "race_prefix": "RACE", "waiting_rematch": "Waiting for host rematch...",
+        "winner": "WINNER {n} {t}s", "most_cells": "MOST CELLS {n} {o}/{t}",
+        "no_results": "No results yet", "rematch": "REMATCH [Space]",
+        "quit_esc": "QUIT [Esc]",
+        "set_title": "SETTINGS", "lang_row": "LANGUAGE",
+        "theme_row": "THEME", "level_row": "LEVEL",
+        "fs_row": "FULLSCREEN", "reset_row": "RESET PROGRESS",
+        "on": "ON", "off": "OFF", "sure": "SURE?", "reset_btn": "RESET",
+        "reset_done": "Progress reset", "set_footer": "Esc - back to game",
+        "msg_netplay": "netplay.py missing",
+        "msg_port": "Port busy - close other host",
+        "msg_host_left": "Host left the race",
+        "msg_noconn": "No connection - wrong IP or host offline",
+        "msg_bad_ip": "Bad IP. Example: 192.168.1.5",
+        "fullscreen_on": "FULLSCREEN ON", "windowed": "WINDOWED",
+    },
+    "ru": {
+        "mines": "МИНЫ", "time": "ВРЕМЯ", "sec": "с", "pts": "ОЧКИ",
+        "save": "СЕЙФ", "mine": "МИНА", "shield": "ЩИТ", "shield_on": "ЩИТ ВКЛ",
+        "hint_line": "ЛКМ-3х3 ПКМ-флаг R Esc",
+        "perfect": "ИДЕАЛЬНО! +{aw} оч. ({el}с)! R — заново",
+        "win": "ПОБЕДА +{aw} оч. ({el}с)! R — заново",
+        "boom": "БУМ! R — заново",
+        "skins": "СКИНЫ [S]", "race": "ГОНКА [G]",
+        "shop_title": "МАГАЗИН", "back": "НАЗАД",
+        "level_hdr": "УРОВЕНЬ (очки)", "theme_hdr": "ТЕМА  [T]",
+        "dark": "ТЁМНАЯ", "light": "СВЕТЛАЯ", "bombs": "БОМБЫ", "flags": "ФЛАЖКИ",
+        "shop_footer": "Очки — за победы. S / Esc — назад",
+        "bought": "Куплено: {n}! -{p} оч.",
+        "need_pts": "Нужно ещё {n} оч. — выигрывай!",
+        "msg_shield_saved": "Щит спас! Мина обезврежена",
+        "msg_bonus_safe": "Бонус: +1 безопасный ход!",
+        "msg_bonus_mine": "Бонус: +1 поиск мины!",
+        "msg_no_safe": "Нет безопасных подсказок",
+        "msg_no_safe_cells": "Нет безопасных клеток",
+        "msg_safe_open": "Открыта безопасная ({r},{c})",
+        "msg_no_mine_hint": "Нет подсказок-поиска мин",
+        "msg_all_flagged": "Все мины уже помечены",
+        "msg_mine_marked": "Мина помечена ({r},{c})",
+        "msg_shield_off": "Щит снят", "msg_no_shield": "Нет щитов",
+        "msg_shield_on": "Щит включён — спасёт от 1 взрыва",
+        "you": "(ВЫ)",
+        "race_title": "WI-FI ГОНКА",
+        "race_sub": "Карта одна для всех — кто быстрее!",
+        "my_ip": "Мой IP:", "name_": "Имя:", "host_ip": "IP хоста:",
+        "host_btn": "ХОСТ [H]", "join_btn": "ВОЙТИ [J]",
+        "race_hint": "Хост диктует IP. Esc — назад",
+        "lobby": "ЛОББИ", "tell_ip": "Скажи друзьям IP:",
+        "wait_host": "Ждём старта хоста...",
+        "start_btn": "СТАРТ [Пробел]", "quit": "ВЫЙТИ",
+        "race_prefix": "ГОНКА", "waiting_rematch": "Ждём реванша от хоста...",
+        "winner": "ПОБЕДИТЕЛЬ {n} {t}с", "most_cells": "БОЛЬШЕ КЛЕТОК {n} {o}/{t}",
+        "no_results": "Пока пусто", "rematch": "РЕВАНШ [Пробел]",
+        "quit_esc": "ВЫЙТИ [Esc]",
+        "set_title": "НАСТРОЙКИ", "lang_row": "ЯЗЫК",
+        "theme_row": "ТЕМА", "level_row": "УРОВЕНЬ",
+        "fs_row": "ПОЛНЫЙ ЭКРАН", "reset_row": "СБРОС ПРОГРЕССА",
+        "on": "ВКЛ", "off": "ВЫКЛ", "sure": "ТОЧНО?", "reset_btn": "СБРОС",
+        "reset_done": "Прогресс сброшен", "set_footer": "Esc — назад в игру",
+        "msg_netplay": "Нет файла netplay.py",
+        "msg_port": "Порт занят — закрой другой хост",
+        "msg_host_left": "Хост вышел из гонки",
+        "msg_noconn": "Нет соединения — неверный IP или хост оффлайн",
+        "msg_bad_ip": "IP введён неверно. Пример: 192.168.1.5",
+        "fullscreen_on": "ПОЛНЫЙ ЭКРАН", "windowed": "ОКНО",
+    },
+}
+MEDALS = {"en": ["1st", "2nd", "3rd"], "ru": ["1-е", "2-е", "3-е"]}
+BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон"}
+FLAG_RU = {"wave": "Волна", "triangle": "Классика", "pirate": "Пират"}
+
+
+def T(key):
+    lang = SETTINGS.get("lang", "ru")
+    table = STRINGS.get(lang, STRINGS["ru"])
+    return table.get(key, STRINGS["en"].get(key, key))
+
+
+def diff_label(key):
+    d = DIFFICULTY.get(key, DIFFICULTY["normal"])
+    return d["label_ru"] if SETTINGS.get("lang") == "ru" else d["label"]
+
+
+def diff_short(key):
+    d = DIFFICULTY.get(key, DIFFICULTY["normal"])
+    return d["short_ru"] if SETTINGS.get("lang") == "ru" else d["short"]
+
+
+def skin_name(kind, skin):
+    if SETTINGS.get("lang") == "ru":
+        return (BOMB_RU if kind == "bomb" else FLAG_RU).get(skin, skin)
+    return (BOMB_NAMES if kind == "bomb" else FLAG_NAMES).get(skin, skin)
+
+
+def medal(i):
+    m = MEDALS.get(SETTINGS.get("lang", "ru"), MEDALS["en"])
+    if i < 3:
+        return m[i]
+    suf = "-е" if SETTINGS.get("lang") == "ru" else "th"
+    return f"{i + 1}{suf}"
+
+
 def apply_difficulty(key):
     """Смена уровня: размер поля + размер окна. Новое поле создаёт main."""
     global ROWS, COLS, MINES, WIDTH, HEIGHT, BOARD_X
@@ -224,9 +377,9 @@ def buy_or_select(kind, skin):
         owned.append(skin)
         SETTINGS[sel_key] = skin
         save_settings()
-        shop_message(f"Bought {names.get(skin, skin)}! -{price} pts")
+        shop_message(T("bought").format(n=skin_name(kind, skin), p=price))
         return True
-    shop_message(f"Need {price - pts} more pts - win levels!")
+    shop_message(T("need_pts").format(n=price - pts))
     return False
 
 # --- Кэш картинок и шрифтов ---
@@ -245,7 +398,8 @@ def get_font(size, bold=True, name="arial"):
 # Русская раскладка: физическая клавиша F даёт «а», R — «к» и т.д.
 # hk() узнаёт хоткей в обеих раскладках (по коду или по букве).
 RU_KEYS = {"r": "к", "s": "ы", "t": "е", "g": "п", "h": "р", "j": "о",
-           "f": "а", "m": "ь", "y": "н", "e": "у", "o": "щ", "a": "ф"}
+           "f": "а", "m": "ь", "y": "н", "e": "у", "o": "щ", "a": "ф",
+           "c": "с"}
 RU_BACK = {v: k for k, v in RU_KEYS.items()}
 
 
@@ -584,7 +738,7 @@ def open_cell(board, r, c):
         if board.get("shield_on"):
             board["shield_on"] = False
             board["flagged"][r][c] = True
-            set_message(board, "🛡 Щит спас! Мина обезврежена", 3.0)
+            set_message(board, T("msg_shield_saved"), 3.0)
             return True
         board["opened"][r][c] = True
         board["game_over"] = True
@@ -647,7 +801,7 @@ def cheat_win(board):
                 board["opened"][r][c] = True
     check_win(board)
     if board.get("won"):
-        set_message(board, f"HESOYAM! +{board.get('award', 0)}pts", 4.0)
+        set_message(board, f"HESOYAM! +{board.get('award', 0)} {T('pts')}", 4.0)
         return True
     return False
 
@@ -683,10 +837,10 @@ def maybe_grant_bonus(board, opened_count=None):
         board["bonus_next"] = bonus_at + 30
         if board.get("hints_safe", 0) < 3:
             board["hints_safe"] = board.get("hints_safe", 0) + 1
-            set_message(board, "🎁 Бонус: +1 безопасный ход!", 3.0)
+            set_message(board, T("msg_bonus_safe"), 3.0)
         elif board.get("hints_mine", 0) < 3:
             board["hints_mine"] = board.get("hints_mine", 0) + 1
-            set_message(board, "🎁 Бонус: +1 поиск мины!", 3.0)
+            set_message(board, T("msg_bonus_mine"), 3.0)
 
 
 def use_safe_hint(board):
@@ -694,7 +848,7 @@ def use_safe_hint(board):
     if board["game_over"]:
         return False
     if board.get("hints_safe", 0) <= 0:
-        set_message(board, "Нет безопасных подсказок", 2.0)
+        set_message(board, T("msg_no_safe"), 2.0)
         return False
     ensure_mines(board)
     candidates = [(r, c) for r in range(ROWS) for c in range(COLS)
@@ -702,7 +856,7 @@ def use_safe_hint(board):
                   and not board["flagged"][r][c]
                   and not board["mines"][r][c]]
     if not candidates:
-        set_message(board, "Нет безопасных клеток", 2.0)
+        set_message(board, T("msg_no_safe_cells"), 2.0)
         return False
     r, c = random.choice(candidates)
     board["hints_safe"] -= 1
@@ -710,7 +864,7 @@ def use_safe_hint(board):
     open_cell(board, r, c)
     maybe_grant_bonus(board)
     if not board["game_over"]:
-        set_message(board, f"💡 Открыта безопасная ({r+1},{c+1})", 2.5)
+        set_message(board, T("msg_safe_open").format(r=r + 1, c=c + 1), 2.5)
     return True
 
 
@@ -719,19 +873,19 @@ def use_mine_hint(board):
     if board["game_over"]:
         return False
     if board.get("hints_mine", 0) <= 0:
-        set_message(board, "Нет подсказок-поиска мин", 2.0)
+        set_message(board, T("msg_no_mine_hint"), 2.0)
         return False
     ensure_mines(board)
     candidates = [(r, c) for r in range(ROWS) for c in range(COLS)
                   if board["mines"][r][c] and not board["flagged"][r][c]]
     if not candidates:
-        set_message(board, "Все мины уже помечены", 2.0)
+        set_message(board, T("msg_all_flagged"), 2.0)
         return False
     r, c = random.choice(candidates)
     board["flagged"][r][c] = True
     board["hints_mine"] -= 1
     board["hints_used"] = board.get("hints_used", 0) + 1
-    set_message(board, f"🚩 Мина помечена ({r+1},{c+1})", 2.5)
+    set_message(board, T("msg_mine_marked").format(r=r + 1, c=c + 1), 2.5)
     return True
 
 
@@ -742,14 +896,14 @@ def toggle_shield(board):
     if board.get("shield_on"):
         board["shield_on"] = False
         board["shields_stock"] = board.get("shields_stock", 0) + 1
-        set_message(board, "Щит снят", 2.0)
+        set_message(board, T("msg_shield_off"), 2.0)
         return True
     if board.get("shields_stock", 0) <= 0:
-        set_message(board, "Нет щитов", 2.0)
+        set_message(board, T("msg_no_shield"), 2.0)
         return False
     board["shields_stock"] -= 1
     board["shield_on"] = True
-    set_message(board, "🛡 Щит включён — спасёт от 1 взрыва", 2.5)
+    set_message(board, T("msg_shield_on"), 2.5)
     return True
 
 
@@ -936,11 +1090,11 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     else:
         elapsed = int(board["elapsed"])
 
-    draw_text_crisp(screen, f"MINES {flags_left:02d}   TIME {elapsed}s",
+    draw_text_crisp(screen, f"{T('mines')} {flags_left:02d}   {T('time')} {elapsed}{T('sec')}",
                     FONT_INFO, FG, (18, 8), bold=True)
     _dk = board.get("difficulty", SETTINGS.get("difficulty", "normal"))
     _dr = DIFFICULTY.get(_dk, DIFFICULTY["normal"])["reward"]
-    draw_text_crisp(screen, f"{_dk.upper()} +{_dr}  PTS {SETTINGS.get('points', 0)}",
+    draw_text_crisp(screen, f"{diff_short(_dk)} +{_dr}  {T('pts')} {SETTINGS.get('points', 0)}",
                     FONT_MSG, GOLD_LIGHT, (18, 44), bold=True)
     # новая круглая кнопка рестарта с иконкой refresh
     face_rect = draw_restart_button(screen, board, mouse_pos, mouse_down, ticks)
@@ -948,12 +1102,12 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
     # 3 крупные кнопки подсказок (с hover/press анимацией)
     bw, bh, gap = 196, 52, 12
     y_btn = 78
-    safe_txt = f"SAVE {board.get('hints_safe',0)} [1]"
-    mine_txt = f"MINE {board.get('hints_mine',0)} [2]"
+    safe_txt = f"{T('save')} {board.get('hints_safe',0)} [1]"
+    mine_txt = f"{T('mine')} {board.get('hints_mine',0)} [2]"
     if board.get("shield_on"):
-        shield_txt = "SHIELD ON [3]"
+        shield_txt = f"{T('shield_on')} [3]"
     else:
-        shield_txt = f"SHIELD {board.get('shields_stock',0)} [3]"
+        shield_txt = f"{T('shield')} {board.get('shields_stock',0)} [3]"
     base_safe = pygame.Rect(18, y_btn, bw, bh)
     base_mine = pygame.Rect(18 + bw + gap, y_btn, bw, bh)
     base_shield = pygame.Rect(18 + (bw + gap) * 2, y_btn, bw, bh)
@@ -977,28 +1131,28 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
         if board["won"]:
             _aw = board.get("award", 0)
             if board.get("hints_used", 0) == 0:
-                msg = f"PERFECT! +{_aw}pts ({elapsed}s)! Press R"
+                msg = T("perfect").format(aw=_aw, el=elapsed)
             else:
-                msg = f"WIN +{_aw}pts ({elapsed}s)! Press R"
+                msg = T("win").format(aw=_aw, el=elapsed)
         else:
-            msg = "BOOM! Press R"
+            msg = T("boom")
     if msg:
         # убрать эмодзи — они мылят в pygame, только чистый текст
         clean = msg.replace("💡", "").replace("🚩", "").replace("🛡", "").replace("🎁", "").replace("🏆", "").replace("💣", "").replace("⏱", "").strip()
         col = (248, 113, 113) if (board["game_over"] and not board["won"]) else (74, 222, 128)
         draw_text_crisp(screen, clean, FONT_MSG, col, (18, 150), bold=True)
     else:
-        draw_text_crisp(screen, "LMB-number=3x3  RMB-flag  R-restart", FONT_MSG, MUTED, (18, 150), bold=True)
+        draw_text_crisp(screen, T("hint_line"), FONT_MSG, MUTED, (18, 150), bold=True)
 
     # кнопки входа в магазин и Wi-Fi гонку (справа от сообщений)
     _rr = pygame.Rect(WIDTH - 160, 142, 142, 50)
-    skins_rect = draw_hint_button(screen, WIDTH - 160, 142, 142, 50, "SKINS [S]",
+    skins_rect = draw_hint_button(screen, WIDTH - 160, 142, 142, 50, T("skins"),
                                   hover=_rr.collidepoint(mouse_pos),
-                                  pressed=mouse_down, ticks=ticks)
+                                  pressed=mouse_down, ticks=ticks, fontsize=20)
     _rg = pygame.Rect(WIDTH - 312, 142, 142, 50)
-    race_rect = draw_hint_button(screen, WIDTH - 312, 142, 142, 50, "RACE [G]",
+    race_rect = draw_hint_button(screen, WIDTH - 312, 142, 142, 50, T("race"),
                                  hover=_rg.collidepoint(mouse_pos),
-                                 pressed=mouse_down, ticks=ticks)
+                                 pressed=mouse_down, ticks=ticks, fontsize=20)
 
     for r in range(ROWS):
         for c in range(COLS):
@@ -1047,47 +1201,47 @@ def skin_card_label(kind, skin):
     owned = SETTINGS.get("owned_bombs" if kind == "bomb" else "owned_flags", [])
     if skin in owned:
         return names[skin]
-    return f"LOCK {SKIN_PRICES.get(skin, 0)}"
+    return f"{SKIN_PRICES.get(skin, 0)} {T('pts')}"
 
 
 def draw_skins_menu(screen, mouse_pos=(0, 0), mouse_down=False, ticks=0):
     """Экран магазина: уровень, тема, скины за очки. Возвращает rects для кликов."""
     screen.fill(HEADER_BG)
     pygame.draw.line(screen, GOLD, (0, 0), (WIDTH, 0), 2)
-    draw_text_crisp(screen, "SHOP & LEVEL", FONT_INFO, FG, (18, 12), bold=True)
-    draw_text_crisp(screen, f"PTS {SETTINGS.get('points', 0)}", FONT_BTN,
+    draw_text_crisp(screen, T("shop_title"), FONT_INFO, FG, (18, 12), bold=True)
+    draw_text_crisp(screen, f"{T('pts')} {SETTINGS.get('points', 0)}", FONT_BTN,
                     GOLD_LIGHT, (18, 48), bold=True)
-    back = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, "BACK",
+    back = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, T("back"),
                             hover=pygame.Rect(WIDTH - 150, 10, 132, 48).collidepoint(mouse_pos),
                             pressed=mouse_down, ticks=ticks)
 
     # уровни сложности (размер поля + награда)
-    draw_text_crisp(screen, "LEVEL (win pts)", FONT_BTN, MUTED, (18, 84), bold=True)
+    draw_text_crisp(screen, T("level_hdr"), FONT_BTN, MUTED, (18, 84), bold=True)
     level_rects = {}
     lw = (WIDTH - 36 - 24) // 3
     for i, key in enumerate(DIFF_ORDER):
         x = 18 + i * (lw + 12)
         d = DIFFICULTY[key]
         base = pygame.Rect(x, 112, lw, 50)
-        btn = draw_hint_button(screen, x, 112, lw, 50, d["label"],
+        btn = draw_hint_button(screen, x, 112, lw, 50, diff_label(key),
                                active=SETTINGS.get("difficulty") == key,
                                hover=base.collidepoint(mouse_pos),
                                pressed=mouse_down, ticks=ticks, fontsize=18)
         level_rects[key] = btn
 
-    draw_text_crisp(screen, "THEME  [T]", FONT_BTN, MUTED, (18, 176), bold=True)
+    draw_text_crisp(screen, T("theme_hdr"), FONT_BTN, MUTED, (18, 176), bold=True)
     td_base = pygame.Rect(18, 204, 304, 50)
     tl_base = pygame.Rect(318, 204, 304, 50)
-    td = draw_hint_button(screen, 18, 204, 304, 50, "DARK",
+    td = draw_hint_button(screen, 18, 204, 304, 50, T("dark"),
                           active=SETTINGS.get("theme") == "dark",
                           hover=td_base.collidepoint(mouse_pos),
                           pressed=mouse_down, ticks=ticks)
-    tl = draw_hint_button(screen, 318, 204, 304, 50, "LIGHT",
+    tl = draw_hint_button(screen, 318, 204, 304, 50, T("light"),
                           active=SETTINGS.get("theme") == "light",
                           hover=tl_base.collidepoint(mouse_pos),
                           pressed=mouse_down, ticks=ticks)
 
-    draw_text_crisp(screen, "BOMBS", FONT_BTN, MUTED, (18, 268), bold=True)
+    draw_text_crisp(screen, T("bombs"), FONT_BTN, MUTED, (18, 268), bold=True)
     bomb_rects = {}
     for i, sk in enumerate(BOMB_SKINS):
         x = 18 + i * (196 + 12)
@@ -1099,7 +1253,7 @@ def draw_skins_menu(screen, mouse_pos=(0, 0), mouse_down=False, ticks=0):
                               pressed=mouse_down, ticks=ticks, locked=not owned)
         bomb_rects[sk] = base
 
-    draw_text_crisp(screen, "FLAGS", FONT_BTN, MUTED, (18, 472), bold=True)
+    draw_text_crisp(screen, T("flags"), FONT_BTN, MUTED, (18, 472), bold=True)
     flag_rects = {}
     for i, sk in enumerate(FLAG_SKINS):
         x = 18 + i * (196 + 12)
@@ -1115,9 +1269,75 @@ def draw_skins_menu(screen, mouse_pos=(0, 0), mouse_down=False, ticks=0):
     if shop_msg:
         draw_text_crisp(screen, shop_msg, FONT_MSG, GOLD_LIGHT, (18, 682), bold=True)
     else:
-        draw_text_crisp(screen, "Win levels for pts - S / Esc back", FONT_MSG, MUTED, (18, 682), bold=True)
+        draw_text_crisp(screen, T("shop_footer"), FONT_MSG, MUTED, (18, 682), bold=True)
     return {"back": back, "theme_dark": td, "theme_light": tl,
             "levels": level_rects, "bombs": bomb_rects, "flags": flag_rects}
+
+
+def draw_settings_menu(screen, fullscreen, sui, mouse_pos=(0, 0), mouse_down=False, ticks=0):
+    """Экран настроек: язык, тема, уровень, полный экран, сброс прогресса."""
+    import time as _t
+    now = _t.time()
+    screen.fill(HEADER_BG)
+    pygame.draw.line(screen, GOLD, (0, 0), (WIDTH, 0), 2)
+    draw_text_crisp(screen, T("set_title"), FONT_INFO, FG, (18, 12), bold=True)
+    back = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, T("back"),
+                            hover=pygame.Rect(WIDTH - 150, 10, 132, 48).collidepoint(mouse_pos),
+                            pressed=mouse_down, ticks=ticks)
+    rects = {"back": back}
+
+    draw_text_crisp(screen, T("lang_row"), FONT_BTN, MUTED, (18, 80), bold=True)
+    for i, lg in enumerate(("ru", "en")):
+        x = 18 + i * 162
+        base = pygame.Rect(x, 108, 150, 48)
+        rects["lang_" + lg] = draw_hint_button(
+            screen, x, 108, 150, 48, "RU" if lg == "ru" else "EN",
+            active=SETTINGS.get("lang") == lg,
+            hover=base.collidepoint(mouse_pos), pressed=mouse_down, ticks=ticks)
+
+    draw_text_crisp(screen, T("theme_row"), FONT_BTN, MUTED, (18, 176), bold=True)
+    for i, th in enumerate(("dark", "light")):
+        x = 18 + i * 202
+        base = pygame.Rect(x, 204, 190, 48)
+        rects["theme_" + th] = draw_hint_button(
+            screen, x, 204, 190, 48, T("dark") if th == "dark" else T("light"),
+            active=SETTINGS.get("theme") == th,
+            hover=base.collidepoint(mouse_pos), pressed=mouse_down, ticks=ticks)
+
+    draw_text_crisp(screen, T("level_row"), FONT_BTN, MUTED, (18, 272), bold=True)
+    rects["levels"] = {}
+    lw = (WIDTH - 36 - 24) // 3
+    for i, key in enumerate(DIFF_ORDER):
+        x = 18 + i * (lw + 12)
+        base = pygame.Rect(x, 300, lw, 48)
+        rects["levels"][key] = draw_hint_button(
+            screen, x, 300, lw, 48, diff_label(key),
+            active=SETTINGS.get("difficulty") == key,
+            hover=base.collidepoint(mouse_pos),
+            pressed=mouse_down, ticks=ticks, fontsize=18)
+
+    draw_text_crisp(screen, T("fs_row"), FONT_BTN, MUTED, (18, 368), bold=True)
+    fs_base = pygame.Rect(18, 396, 250, 48)
+    rects["fs"] = draw_hint_button(
+        screen, 18, 396, 250, 48, T("on") if fullscreen else T("off"),
+        active=fullscreen, hover=fs_base.collidepoint(mouse_pos),
+        pressed=mouse_down, ticks=ticks)
+
+    draw_text_crisp(screen, T("reset_row"), FONT_BTN, MUTED, (18, 464), bold=True)
+    if now < sui.get("reset_done", 0) + 2.5:
+        rlabel, rdis = T("done"), True
+    elif now < sui.get("reset_arm", 0) + 5:
+        rlabel, rdis = T("sure"), False
+    else:
+        rlabel, rdis = T("reset_btn"), False
+    rs_base = pygame.Rect(18, 492, 250, 48)
+    rects["reset"] = draw_hint_button(
+        screen, 18, 492, 250, 48, rlabel,
+        hover=rs_base.collidepoint(mouse_pos), pressed=mouse_down,
+        ticks=ticks, disabled=rdis)
+
+    draw_text_crisp(screen, T("set_footer"), FONT_MSG, MUTED, (18, 566), bold=True)
+    return rects
 
 
 # --- Wi-Fi гонка ---
@@ -1193,24 +1413,24 @@ def draw_text_field(screen, x, y, w, h, text, active, placeholder=""):
 def draw_race_menu(screen, race, mouse_pos, mouse_down, ticks):
     screen.fill(HEADER_BG)
     pygame.draw.line(screen, GOLD, (0, 0), (WIDTH, 0), 2)
-    draw_text_crisp(screen, "WI-FI RACE", FONT_INFO, FG, (18, 12), bold=True)
-    draw_text_crisp(screen, "Same map for all - fastest wins!", FONT_MSG, MUTED, (18, 50), bold=True)
-    back = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, "BACK",
+    draw_text_crisp(screen, T("race_title"), FONT_INFO, FG, (18, 12), bold=True)
+    draw_text_crisp(screen, T("race_sub"), FONT_MSG, MUTED, (18, 50), bold=True)
+    back = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, T("back"),
                             hover=pygame.Rect(WIDTH - 150, 10, 132, 48).collidepoint(mouse_pos),
                             pressed=mouse_down, ticks=ticks)
-    draw_text_crisp(screen, f"My IP: {race['my_ip']}", FONT_MSG, GOLD_LIGHT, (18, 84), bold=True)
-    draw_text_crisp(screen, "Name:", FONT_BTN, MUTED, (18, 120), bold=True)
+    draw_text_crisp(screen, f"{T('my_ip')} {race['my_ip']}", FONT_MSG, GOLD_LIGHT, (18, 84), bold=True)
+    draw_text_crisp(screen, T("name_"), FONT_BTN, MUTED, (18, 120), bold=True)
     fname = draw_text_field(screen, 18, 148, 300, 50, race["name"],
                             race["field"] == "name")
-    draw_text_crisp(screen, "Host IP:", FONT_BTN, MUTED, (330, 120), bold=True)
+    draw_text_crisp(screen, T("host_ip"), FONT_BTN, MUTED, (330, 120), bold=True)
     fip = draw_text_field(screen, 330, 148, 292, 50, race["ip"],
                           race["field"] == "ip", placeholder="192.168.1.5")
     host_b = pygame.Rect(18, 218, 304, 54)
     join_b = pygame.Rect(318, 218, 304, 54)
-    hb = draw_hint_button(screen, 18, 218, 304, 54, "HOST GAME [H]",
+    hb = draw_hint_button(screen, 18, 218, 304, 54, T("host_btn"),
                           hover=host_b.collidepoint(mouse_pos),
                           pressed=mouse_down, ticks=ticks)
-    jb = draw_hint_button(screen, 318, 218, 304, 54, "JOIN [J]",
+    jb = draw_hint_button(screen, 318, 218, 304, 54, T("join_btn"),
                           hover=join_b.collidepoint(mouse_pos),
                           pressed=mouse_down, ticks=ticks,
                           disabled=race.get("connecting", False))
@@ -1218,7 +1438,7 @@ def draw_race_menu(screen, race, mouse_pos, mouse_down, ticks):
     if msg:
         draw_text_crisp(screen, msg, FONT_MSG, (248, 113, 113), (18, 292), bold=True)
     else:
-        draw_text_crisp(screen, "Host shares IP - joiners type it. Esc - back",
+        draw_text_crisp(screen, T("race_hint"),
                         FONT_MSG, MUTED, (18, 292), bold=True)
     return {"back": back, "host": hb, "join": jb, "fname": fname, "fip": fip}
 
@@ -1226,26 +1446,26 @@ def draw_race_menu(screen, race, mouse_pos, mouse_down, ticks):
 def draw_lobby(screen, race, mouse_pos, mouse_down, ticks):
     screen.fill(HEADER_BG)
     pygame.draw.line(screen, GOLD, (0, 0), (WIDTH, 0), 2)
-    draw_text_crisp(screen, "LOBBY", FONT_INFO, FG, (18, 12), bold=True)
+    draw_text_crisp(screen, T("lobby"), FONT_INFO, FG, (18, 12), bold=True)
     if race["role"] == "host":
-        draw_text_crisp(screen, f"Tell friends your IP: {race['my_ip']}", FONT_MSG,
+        draw_text_crisp(screen, f"{T('tell_ip')} {race['my_ip']}", FONT_MSG,
                         GOLD_LIGHT, (18, 50), bold=True)
     else:
-        draw_text_crisp(screen, "Waiting for host to press START...", FONT_MSG,
+        draw_text_crisp(screen, T("wait_host"), FONT_MSG,
                         GOLD_LIGHT, (18, 50), bold=True)
     y = 96
     for i, nm in enumerate(race.get("players", [])):
-        you = " (YOU)" if nm == race["name"] else ""
+        you = " " + T("you") if nm == race["name"] else ""
         draw_text_crisp(screen, f"{i + 1}. {nm}{you}", FONT_BTN, FG, (18, y), bold=True)
         y += 36
     rects = {"players": race.get("players", [])}
     if race["role"] == "host":
         st = pygame.Rect(18, y + 10, 304, 54)
-        rects["start"] = draw_hint_button(screen, 18, y + 10, 304, 54, "START [Space]",
+        rects["start"] = draw_hint_button(screen, 18, y + 10, 304, 54, T("start_btn"),
                                           hover=st.collidepoint(mouse_pos),
                                           pressed=mouse_down, ticks=ticks)
     qb = pygame.Rect(WIDTH - 150, 10, 132, 48)
-    rects["quit"] = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, "QUIT",
+    rects["quit"] = draw_hint_button(screen, WIDTH - 150, 10, 132, 48, T("quit"),
                                      hover=qb.collidepoint(mouse_pos),
                                      pressed=mouse_down, ticks=ticks)
     msg = get_race_message(race)
@@ -1263,7 +1483,7 @@ def race_table_line(race):
         else:
             st = f"{row.get('opened', 0)}/{row.get('total', 0)}"
         parts.append(f"{nm} {st}")
-    line = "RACE " + " | ".join(parts[:3])
+    line = T("race_prefix") + " " + " | ".join(parts[:3])
     if len(parts) > 3:
         line += f" +{len(parts) - 3}"
     return line
@@ -1281,22 +1501,21 @@ def draw_race_result(screen, race, mouse_pos, mouse_down, ticks):
     winners = [p for p in places if p["elapsed"] >= 0]
     if winners:
         w = winners[0]
-        draw_text_crisp(screen, f"WINNER {w['name']} {w['elapsed']:.1f}s",
+        draw_text_crisp(screen, T("winner").format(n=w["name"], t=f"{w['elapsed']:.1f}"),
                         FONT_INFO, GOLD_LIGHT, (18, 14), bold=True)
     elif places:
         top = places[0]
         draw_text_crisp(screen,
-                        f"MOST CELLS {top['name']} {top.get('opened', 0)}/{top.get('total', 0)}",
+                        T("most_cells").format(n=top['name'], o=top.get('opened', 0), t=top.get('total', 0)),
                         FONT_INFO, GOLD_LIGHT, (18, 14), bold=True)
     else:
-        draw_text_crisp(screen, "No results yet", FONT_INFO, FG, (18, 14), bold=True)
+        draw_text_crisp(screen, T("no_results"), FONT_INFO, FG, (18, 14), bold=True)
     y = 70
-    medals = ["1st", "2nd", "3rd"]
     for i, p in enumerate(places):
-        tag = medals[i] if i < 3 else f"{i + 1}th"
+        tag = medal(i)
         res = f"{p['elapsed']:.1f}s" if p["elapsed"] >= 0 else "DNF"
         cells = f" ({p.get('opened', 0)}/{p.get('total', 0)})"
-        you = " (YOU)" if p["name"] == race["name"] else ""
+        you = " " + T("you") if p["name"] == race["name"] else ""
         col = GOLD_LIGHT if i == 0 else FG
         draw_text_crisp(screen, f"{tag}  {p['name']}{you}  {res}{cells}",
                         FONT_BTN, col, (18, y), bold=True)
@@ -1304,18 +1523,18 @@ def draw_race_result(screen, race, mouse_pos, mouse_down, ticks):
     rects = {}
     if race["role"] == "host":
         rb = pygame.Rect(18, y + 16, 250, 52)
-        rects["rematch"] = draw_hint_button(screen, 18, y + 16, 250, 52, "REMATCH [Space]",
+        rects["rematch"] = draw_hint_button(screen, 18, y + 16, 250, 52, T("rematch"),
                                             hover=rb.collidepoint(mouse_pos),
                                             pressed=mouse_down, ticks=ticks)
         qb = pygame.Rect(280, y + 16, 200, 52)
-        rects["back"] = draw_hint_button(screen, 280, y + 16, 200, 52, "QUIT [Esc]",
+        rects["back"] = draw_hint_button(screen, 280, y + 16, 200, 52, T("quit_esc"),
                                          hover=qb.collidepoint(mouse_pos),
                                          pressed=mouse_down, ticks=ticks)
     else:
-        draw_text_crisp(screen, "Waiting for host rematch...", FONT_MSG, MUTED,
+        draw_text_crisp(screen, T("waiting_rematch"), FONT_MSG, MUTED,
                         (18, y + 16), bold=True)
         qb = pygame.Rect(18, y + 52, 200, 52)
-        rects["back"] = draw_hint_button(screen, 18, y + 52, 200, 52, "QUIT [Esc]",
+        rects["back"] = draw_hint_button(screen, 18, y + 52, 200, 52, T("quit_esc"),
                                          hover=qb.collidepoint(mouse_pos),
                                          pressed=mouse_down, ticks=ticks)
     return rects
@@ -1389,14 +1608,16 @@ def main():
     board = create_empty_board()
     rects = {"face": None, "safe": None, "mine": None, "shield": None,
              "skins": None, "race": None}
-    mode = "game"  # game | skins | race | lobby | race_game | race_result
+    mode = "game"  # game | skins | race | lobby | race_game | race_result | settings
     cheat_buf = ""  # чит HESOYAM набирается буквами
     race = new_race_state()
+    settings_from = "game"
+    settings_ui = {"reset_arm": 0.0, "reset_done": 0.0}
 
     def race_host_game():
         nonlocal board, mode
         if netplay is None:
-            race_message(race, "netplay.py missing")
+            race_message(race, T("msg_netplay"))
             return
         name = race["name"].strip() or "Player"
         race["name"] = name
@@ -1404,7 +1625,7 @@ def main():
             h = netplay.RaceHost(name, SETTINGS.get("difficulty", "normal"))
             h.serve()
         except OSError:
-            race_message(race, "Port busy - close other host")
+            race_message(race, T("msg_port"))
             return
         race["host"] = h
         race["role"] = "host"
@@ -1418,13 +1639,13 @@ def main():
     def race_join_game():
         nonlocal mode
         if netplay is None:
-            race_message(race, "netplay.py missing")
+            race_message(race, T("msg_netplay"))
             return
         if race.get("connecting"):
             return  # уже подключаемся, ждём ответ
         ok, ip = parse_host_ip(race["ip"])
         if not ok:
-            race_message(race, "IP введён неверно. Пример: 192.168.1.5")
+            race_message(race, T("msg_bad_ip"))
             return
         name = race["name"].strip() or "Player"
         race["name"] = name
@@ -1480,7 +1701,7 @@ def main():
                     # На Маке жми F: F11 перехватывает macOS (Mission Control).
                     fullscreen = not fullscreen
                     apply_window()
-                    set_message(board, "FULLSCREEN ON" if fullscreen else "WINDOWED", 1.5)
+                    set_message(board, T("fullscreen_on") if fullscreen else T("windowed"), 1.5)
                     continue
                 if mode == "race":
                     # меню гонки: поля ввода или хоткеи
@@ -1546,11 +1767,23 @@ def main():
                         mode = "game"
                     elif hk(event, "s"):
                         mode = "game"
+                    elif hk(event, "c"):
+                        settings_from = "skins"
+                        mode = "settings"
                     elif hk(event, "t"):
                         toggle_theme()
+                elif mode == "settings":
+                    if k == pygame.K_ESCAPE:
+                        mode = settings_from
+                    elif hk(event, "c"):
+                        mode = settings_from
                 elif mode == "game":
                     if k == pygame.K_ESCAPE:
-                        pass
+                        settings_from = "game"
+                        mode = "settings"
+                    elif hk(event, "c"):
+                        settings_from = "game"
+                        mode = "settings"
                     elif hk(event, "s") and not (
                             "hesoyam".startswith(cheat_buf + RU_BACK.get(
                                 (event.unicode or "").lower(), "s"))):
@@ -1579,6 +1812,55 @@ def main():
                             cheat_buf = ""
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = to_logical(event.pos)
+                if mode == "settings":
+                    if rects.get("back") and rects["back"].collidepoint(mx, my):
+                        mode = settings_from
+                        continue
+                    if rects.get("lang_ru") and rects["lang_ru"].collidepoint(mx, my):
+                        set_lang("ru")
+                        continue
+                    if rects.get("lang_en") and rects["lang_en"].collidepoint(mx, my):
+                        set_lang("en")
+                        continue
+                    if rects.get("theme_dark") and rects["theme_dark"].collidepoint(mx, my):
+                        apply_theme("dark")
+                        save_settings()
+                        continue
+                    if rects.get("theme_light") and rects["theme_light"].collidepoint(mx, my):
+                        apply_theme("light")
+                        save_settings()
+                        continue
+                    _handled = False
+                    for key, rc in rects.get("levels", {}).items():
+                        if rc.collidepoint(mx, my):
+                            if SETTINGS.get("difficulty") != key:
+                                apply_difficulty(key)
+                                save_settings()
+                                board = create_empty_board()
+                                cheat_buf = ""
+                            _handled = True
+                            break
+                    if _handled:
+                        continue
+                    if rects.get("fs") and rects["fs"].collidepoint(mx, my):
+                        fullscreen = not fullscreen
+                        apply_window()
+                        continue
+                    if rects.get("reset") and rects["reset"].collidepoint(mx, my):
+                        import time as _t2
+                        if _t2.time() < settings_ui.get("reset_arm", 0) + 5:
+                            SETTINGS["points"] = 0
+                            SETTINGS["owned_bombs"] = ["fuse"]
+                            SETTINGS["owned_flags"] = ["wave"]
+                            SETTINGS["bomb_skin"] = "fuse"
+                            SETTINGS["flag_skin"] = "wave"
+                            save_settings()
+                            settings_ui["reset_arm"] = 0.0
+                            settings_ui["reset_done"] = _t2.time()
+                        else:
+                            settings_ui["reset_arm"] = _t2.time()
+                        continue
+                    continue
                 if mode == "race":
                     if rects.get("back") and rects["back"].collidepoint(mx, my):
                         race["field"] = None
@@ -1737,12 +2019,12 @@ def main():
                     race["places"] = ev["places"]
                     mode = "race_result"
                 elif t in ("bye", "disconnected"):
-                    race_message(race, "Host left the race")
+                    race_message(race, T("msg_host_left"))
                     leave_race(race)
                     mode = "race"
                     break  # состояние сброшено — старые события не трогаем
                 elif t == "conn_fail":
-                    race_message(race, "No connection - wrong IP or host offline")
+                    race_message(race, T("msg_noconn"))
                     race["client"] = None
                     race["role"] = None
                     race["connecting"] = False
@@ -1772,6 +2054,9 @@ def main():
 
         if mode == "skins":
             rects = draw_skins_menu(canvas, mouse_pos, mouse_down, ticks)
+        elif mode == "settings":
+            rects = draw_settings_menu(canvas, fullscreen, settings_ui,
+                                       mouse_pos, mouse_down, ticks)
         elif mode == "race":
             rects = draw_race_menu(canvas, race, mouse_pos, mouse_down, ticks)
         elif mode == "lobby":
