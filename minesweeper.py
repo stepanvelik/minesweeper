@@ -32,6 +32,11 @@ import sys
 import pygame
 
 try:
+    from ttt_embedded import TicTacToeScreen
+except Exception:
+    TicTacToeScreen = None
+
+try:
     import netplay
 except Exception:
     netplay = None
@@ -117,7 +122,7 @@ del _k, _v
 SETTINGS_FILE = "skins_settings.json"
 SETTINGS = {"theme": "dark", "bomb_skin": "fuse", "flag_skin": "wave",
             "difficulty": "normal", "points": 0, "lang": "ru",
-            "owned_bombs": ["fuse"], "owned_flags": ["wave"]}
+            "owned_bombs": ["fuse"], "owned_flags": ["wave"], "ttt_skin": "classic"}
 BOMB_SKINS = ["fuse", "classic", "neon"]
 FLAG_SKINS = ["wave", "triangle", "pirate"]
 BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon"}
@@ -156,6 +161,8 @@ def load_settings():
                 SETTINGS["difficulty"] = data["difficulty"]
             if data.get("lang") in ("ru", "en"):
                 SETTINGS["lang"] = data["lang"]
+            if data.get("ttt_skin") in ("classic", "neon", "warm"):
+                SETTINGS["ttt_skin"] = data["ttt_skin"]
             if isinstance(data.get("points"), int) and data["points"] >= 0:
                 SETTINGS["points"] = data["points"]
             if isinstance(data.get("owned_bombs"), list):
@@ -221,7 +228,7 @@ STRINGS = {
         "perfect": "PERFECT! +{aw}pts ({el}s)! Press R",
         "win": "WIN +{aw}pts ({el}s)! Press R",
         "boom": "BOOM! Press R",
-        "skins": "SKINS [S]", "race": "RACE [G]", "games": "GAMES [M]",
+        "skins": "SKINS [S]", "race": "RACE [G]", "games": "X/O TIC-TAC-TOE",
         "shop_title": "SHOP & LEVEL", "back": "BACK",
         "level_hdr": "LEVEL (win pts)", "theme_hdr": "THEME  [T]",
         "dark": "DARK", "light": "LIGHT", "bombs": "BOMBS", "flags": "FLAGS",
@@ -274,7 +281,7 @@ STRINGS = {
         "perfect": "ИДЕАЛЬНО! +{aw} оч. ({el}с)! R — заново",
         "win": "ПОБЕДА +{aw} оч. ({el}с)! R — заново",
         "boom": "БУМ! R — заново",
-        "skins": "СКИНЫ [S]", "race": "ГОНКА [G]", "games": "ИГРЫ [M]",
+        "skins": "СКИНЫ [S]", "race": "ГОНКА [G]", "games": "X/O КРЕСТИКИ",
         "shop_title": "МАГАЗИН", "back": "НАЗАД",
         "level_hdr": "УРОВЕНЬ (очки)", "theme_hdr": "ТЕМА  [T]",
         "dark": "ТЁМНАЯ", "light": "СВЕТЛАЯ", "bombs": "БОМБЫ", "flags": "ФЛАЖКИ",
@@ -1163,8 +1170,8 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
                                  hover=_rg.collidepoint(mouse_pos),
                                  pressed=mouse_down, ticks=ticks, fontsize=20)
     # Хаб мини-игр — отдельная заметная кнопка слева от круглого рестарта.
-    _gm = pygame.Rect(WIDTH - 240, 12, 140, 48)
-    games_rect = draw_hint_button(screen, WIDTH - 240, 12, 140, 48, T("games"),
+    _gm = pygame.Rect(WIDTH - 290, 12, 190, 48)
+    games_rect = draw_hint_button(screen, WIDTH - 290, 12, 190, 48, T("games"),
                                   active=True,
                                   hover=_gm.collidepoint(mouse_pos),
                                   pressed=mouse_down, ticks=ticks, fontsize=20)
@@ -1623,11 +1630,18 @@ def main():
     board = create_empty_board()
     rects = {"face": None, "safe": None, "mine": None, "shield": None,
              "skins": None, "race": None}
-    mode = "game"  # game | skins | race | lobby | race_game | race_result | settings
+    mode = "game"  # game | skins | race | lobby | race_game | race_result | settings | ttt
     cheat_buf = ""  # чит HESOYAM набирается буквами
     race = new_race_state()
     settings_from = "game"
     settings_ui = {"reset_arm": 0.0, "reset_done": 0.0}
+    ttt_ui = {
+        "button": draw_hint_button, "text": draw_text_crisp, "save": save_settings,
+        "header": lambda: HEADER_BG, "gold": lambda: GOLD, "fg": lambda: FG,
+        "muted": lambda: MUTED, "green": lambda: GREEN, "border": lambda: HEADER_BORDER,
+        "button_bg": lambda: BTN_BG,
+    }
+    ttt = TicTacToeScreen(ttt_ui, SETTINGS) if TicTacToeScreen else None
 
     def race_host_game():
         nonlocal board, mode
@@ -1696,17 +1710,12 @@ def main():
         cheat_buf = ""
         mode = "race_game"
 
-    def launch_minigames():
-        """Открыть хаб отдельно, не останавливая текущую партию Сапёра."""
-        launcher = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minigames.py")
-        if not os.path.isfile(launcher):
-            set_message(board, T("mg_missing"))
-            return
-        try:
-            subprocess.Popen([sys.executable, launcher], cwd=os.path.dirname(launcher))
-            set_message(board, T("mg_opened"))
-        except OSError:
-            set_message(board, T("mg_fail"))
+    def open_ttt():
+        nonlocal mode
+        if ttt is None:
+            set_message(board, "Tic-tac-toe module missing")
+        else:
+            mode = "ttt"
 
     running = True
     while running:
@@ -1729,6 +1738,10 @@ def main():
                     fullscreen = not fullscreen
                     apply_window()
                     set_message(board, T("fullscreen_on") if fullscreen else T("windowed"), 1.5)
+                    continue
+                if mode == "ttt":
+                    if ttt.handle(event, to_logical(pygame.mouse.get_pos())) == "back":
+                        mode = "game"
                     continue
                 if mode == "race":
                     # меню гонки: поля ввода или хоткеи
@@ -1820,7 +1833,7 @@ def main():
                         race["field"] = None
                         mode = "race"
                     elif hk(event, "m"):
-                        launch_minigames()
+                        open_ttt()
                     elif hk(event, "t"):
                         toggle_theme()
                     elif hk(event, "r"):
@@ -1841,6 +1854,10 @@ def main():
                             cheat_buf = ""
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = to_logical(event.pos)
+                if mode == "ttt":
+                    if ttt.handle(event, (mx, my)) == "back":
+                        mode = "game"
+                    continue
                 if mode == "settings":
                     if rects.get("back") and rects["back"].collidepoint(mx, my):
                         mode = settings_from
@@ -1985,7 +2002,7 @@ def main():
                     mode = "race"
                     continue
                 if mode == "game" and rects.get("games") and rects["games"].collidepoint(mx, my):
-                    launch_minigames()
+                    open_ttt()
                     continue
                 if my < HEADER:
                     continue
@@ -2084,7 +2101,9 @@ def main():
                 elif race["role"] == "client" and race["client"]:
                     race["client"].send_finish(el, race.get("round", 0))
 
-        if mode == "skins":
+        if mode == "ttt":
+            ttt.draw(canvas, mouse_pos, mouse_down, ticks, WIDTH, HEIGHT)
+        elif mode == "skins":
             rects = draw_skins_menu(canvas, mouse_pos, mouse_down, ticks)
         elif mode == "settings":
             rects = draw_settings_menu(canvas, fullscreen, settings_ui,

@@ -24,8 +24,9 @@ def _send(conn, payload):
 
 class Host:
     """Хост принимает ровно одного соперника; события забирает pygame-поток."""
-    def __init__(self, name):
+    def __init__(self, name, size=3):
         self.name, self.events, self.conn = name, queue.Queue(), None
+        self.size = size
         self.server, self.alive = None, True
 
     def start(self):
@@ -45,8 +46,8 @@ class Host:
                 raise ValueError("bad handshake")
             self.conn = conn
             opponent = str(hello.get("name", "Player"))[:16] or "Player"
-            _send(conn, {"t": "welcome", "host": self.name})
-            self.events.put({"t": "joined", "name": opponent})
+            _send(conn, {"t": "welcome", "host": self.name, "size": self.size})
+            self.events.put({"t": "joined", "name": opponent, "size": self.size})
             self._read(conn)
         except Exception:
             if self.alive:
@@ -79,8 +80,9 @@ class Host:
 
 
 class Client:
-    def __init__(self, ip, name):
+    def __init__(self, ip, name, size=3):
         self.ip, self.name, self.events, self.conn = ip, name, queue.Queue(), None
+        self.size = size
         self.alive = True
 
     def start(self):
