@@ -444,7 +444,10 @@ def draw_text_crisp(screen, text, size, color, pos, center=False, bold=True, nam
 def _load_external(name, target_size):
     """Если в папке assets/ есть bomb.png / flag.png — используем их."""
     import os
-    for fname in (f"assets/{name}.png", f"assets/{name}.jpg", f"{name}.png"):
+    root = os.path.dirname(os.path.abspath(__file__))
+    for fname in (os.path.join(root, "assets", f"{name}.png"),
+                  os.path.join(root, "assets", f"{name}.jpg"),
+                  os.path.join(root, f"{name}.png")):
         if os.path.exists(fname):
             try:
                 img = pygame.image.load(fname).convert_alpha()
@@ -1185,7 +1188,11 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
                                   active=True,
                                   hover=_gm.collidepoint(mouse_pos),
                                   pressed=mouse_down, ticks=ticks, fontsize=20)
-    game_icon = get_ttt_icon(38)
+    # Иконка — только декоративный элемент: сбой файла не должен закрывать игру.
+    try:
+        game_icon = get_ttt_icon(38)
+    except Exception:
+        game_icon = None
     if game_icon:
         screen.blit(game_icon, (WIDTH - 282, 17))
     draw_text_crisp(screen, T("games"), 18, WHITE, (WIDTH - 232, 27), bold=True)
