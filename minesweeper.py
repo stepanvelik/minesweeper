@@ -228,7 +228,7 @@ STRINGS = {
         "perfect": "PERFECT! +{aw}pts ({el}s)! Press R",
         "win": "WIN +{aw}pts ({el}s)! Press R",
         "boom": "BOOM! Press R",
-        "skins": "SKINS [S]", "race": "RACE [G]", "games": "X/O TIC-TAC-TOE",
+        "skins": "SKINS [S]", "race": "RACE [G]", "games": "TIC-TAC-TOE",
         "shop_title": "SHOP & LEVEL", "back": "BACK",
         "level_hdr": "LEVEL (win pts)", "theme_hdr": "THEME  [T]",
         "dark": "DARK", "light": "LIGHT", "bombs": "BOMBS", "flags": "FLAGS",
@@ -281,7 +281,7 @@ STRINGS = {
         "perfect": "ИДЕАЛЬНО! +{aw} оч. ({el}с)! R — заново",
         "win": "ПОБЕДА +{aw} оч. ({el}с)! R — заново",
         "boom": "БУМ! R — заново",
-        "skins": "СКИНЫ [S]", "race": "ГОНКА [G]", "games": "X/O КРЕСТИКИ",
+        "skins": "СКИНЫ [S]", "race": "ГОНКА [G]", "games": "КРЕСТИКИ",
         "shop_title": "МАГАЗИН", "back": "НАЗАД",
         "level_hdr": "УРОВЕНЬ (очки)", "theme_hdr": "ТЕМА  [T]",
         "dark": "ТЁМНАЯ", "light": "СВЕТЛАЯ", "bombs": "БОМБЫ", "flags": "ФЛАЖКИ",
@@ -452,6 +452,16 @@ def _load_external(name, target_size):
             except Exception:
                 pass
     return None
+
+
+_TTT_ICON_CACHE = {}
+
+
+def get_ttt_icon(size):
+    """Иконка крестиков-ноликов из assets; кэшируется по размеру."""
+    if size not in _TTT_ICON_CACHE:
+        _TTT_ICON_CACHE[size] = _load_external("tictactoe-icon", size)
+    return _TTT_ICON_CACHE[size]
 
 
 def _make_bomb_fuse(S):
@@ -1171,10 +1181,14 @@ def draw(screen, font, small_font, tiny_font, board, mouse_pos=(0, 0), mouse_dow
                                  pressed=mouse_down, ticks=ticks, fontsize=20)
     # Хаб мини-игр — отдельная заметная кнопка слева от круглого рестарта.
     _gm = pygame.Rect(WIDTH - 290, 12, 190, 48)
-    games_rect = draw_hint_button(screen, WIDTH - 290, 12, 190, 48, T("games"),
+    games_rect = draw_hint_button(screen, WIDTH - 290, 12, 190, 48, "",
                                   active=True,
                                   hover=_gm.collidepoint(mouse_pos),
                                   pressed=mouse_down, ticks=ticks, fontsize=20)
+    game_icon = get_ttt_icon(38)
+    if game_icon:
+        screen.blit(game_icon, (WIDTH - 282, 17))
+    draw_text_crisp(screen, T("games"), 18, WHITE, (WIDTH - 232, 27), bold=True)
 
     for r in range(ROWS):
         for c in range(COLS):
