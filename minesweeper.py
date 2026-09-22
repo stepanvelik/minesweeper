@@ -1689,10 +1689,13 @@ def main():
                         toggle_flag(board, r, c)
 
         # --- сетевые события гонки ---
-        if race["role"] == "host" and race["host"]:
+        # (берём host/client в локальную переменную: обработчики ниже
+        # могут обнулить race["host"]/race["client"] прямо посреди цикла)
+        _host = race["role"] == "host" and race["host"]
+        if _host:
             while True:
                 try:
-                    ev = race["host"].events.get_nowait()
+                    ev = _host.events.get_nowait()
                 except queue.Empty:
                     break
                 if ev.get("t") == "table":
@@ -1701,10 +1704,11 @@ def main():
                 elif ev.get("t") == "result":
                     race["places"] = ev["places"]
                     mode = "race_result"
-        elif race["role"] == "client" and race["client"]:
+        _cli = race["role"] == "client" and race["client"]
+        if _cli:
             while True:
                 try:
-                    ev = race["client"].events.get_nowait()
+                    ev = _cli.events.get_nowait()
                 except queue.Empty:
                     break
                 t = ev.get("t")
@@ -1736,6 +1740,7 @@ def main():
                     race_message(race, "Host left the race")
                     leave_race(race)
                     mode = "race"
+                    break  # состояние сброшено — старые события не трогаем
                 elif t == "conn_fail":
                     race_message(race, "No connection - wrong IP or host offline")
                     race["client"] = None
