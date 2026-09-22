@@ -120,10 +120,10 @@ SETTINGS = {"theme": "dark", "bomb_skin": "fuse", "flag_skin": "wave",
             "owned_bombs": ["fuse"], "owned_flags": ["wave"]}
 BOMB_SKINS = ["fuse", "classic", "neon"]
 FLAG_SKINS = ["wave", "triangle", "pirate"]
-BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon"}
+BOMB_NAMES = {"fuse": "Fuse", "classic": "Classic", "neon": "Neon", "art": "Art"}
 FLAG_NAMES = {"wave": "Wave", "triangle": "Classic", "pirate": "Pirate"}
 # цены магазина: базовые скины бесплатны
-SKIN_PRICES = {"fuse": 0, "classic": 150, "neon": 300,
+SKIN_PRICES = {"fuse": 0, "classic": 150, "neon": 300, "art": 0,
                "wave": 0, "triangle": 150, "pirate": 300}
 # сообщение магазина (показывается в меню)
 _SHOP_MSG = {"text": "", "until": 0}
@@ -322,7 +322,7 @@ STRINGS = {
     },
 }
 MEDALS = {"en": ["1st", "2nd", "3rd"], "ru": ["1-е", "2-е", "3-е"]}
-BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон"}
+BOMB_RU = {"fuse": "Фитиль", "classic": "Классика", "neon": "Неон", "art": "Арт"}
 FLAG_RU = {"wave": "Волна", "triangle": "Классика", "pirate": "Пират"}
 
 
@@ -526,11 +526,29 @@ def _make_bomb_neon(S):
 
 
 _BOMB_CACHE = {}
+_ART_FULL = None
+
+
+def art_bomb_path():
+    import os
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "assets", "icon.png")
+
+
+def art_available():
+    import os
+    return os.path.isfile(art_bomb_path())
+
+
+def register_art_skin():
+    """Если есть assets/icon.png — добавить скин Art (бесплатно)."""
+    if art_available() and "art" not in BOMB_SKINS:
+        BOMB_SKINS.append("art")
 
 
 def get_bomb_image(size=None, skin=None):
-    """Бомба выбранного скина (fuse/classic/neon). Суперсэмплинг для чёткости."""
-    global _BOMB_IMG
+    """Бомба выбранного скина (fuse/classic/neon/art). Суперсэмплинг для чёткости."""
+    global _BOMB_IMG, _ART_FULL
     skin = skin or SETTINGS.get("bomb_skin", "fuse")
     if skin not in BOMB_SKINS:
         skin = "fuse"
@@ -539,6 +557,14 @@ def get_bomb_image(size=None, skin=None):
     if key in _BOMB_CACHE:
         _BOMB_IMG = _BOMB_CACHE[key]
         return _BOMB_IMG
+    if skin == "art":
+        # арт тянем из полного разрешения (1254px) сразу в цель — максимально чётко
+        if _ART_FULL is None:
+            _ART_FULL = pygame.image.load(art_bomb_path()).convert_alpha()
+        small = pygame.transform.smoothscale(_ART_FULL, (target, target))
+        _BOMB_CACHE[key] = small
+        _BOMB_IMG = small
+        return small
     ext = _load_external("bomb", target)
     if ext is not None:
         _BOMB_CACHE[key] = ext
@@ -1211,11 +1237,14 @@ def draw_skin_card(screen, x, y, w, h, image, name, selected=False,
 
 
 def skin_card_label(kind, skin):
-    """Название + цена для закрытого скина."""
-    names = BOMB_NAMES if kind == "bomb" else FLAG_NAMES
+    """Название; цена — только для платных закрытых скинов."""
+    if SETTINGS.get("lang") == "ru":
+        names = BOMB_RU if kind == "bomb" else FLAG_RU
+    else:
+        names = BOMB_NAMES if kind == "bomb" else FLAG_NAMES
     owned = SETTINGS.get("owned_bombs" if kind == "bomb" else "owned_flags", [])
-    if skin in owned:
-        return names[skin]
+    if skin in owned or SKIN_PRICES.get(skin, 0) == 0:
+        return names.get(skin, skin)
     return f"{SKIN_PRICES.get(skin, 0)} {T('pts')}"
 
 
@@ -1258,13 +1287,15 @@ def draw_skins_menu(screen, mouse_pos=(0, 0), mouse_down=False, ticks=0):
 
     draw_text_crisp(screen, T("bombs"), FONT_BTN, MUTED, (18, 268), bold=True)
     bomb_rects = {}
+    _n = len(BOMB_SKINS)
+    _cw = (WIDTH - 36 - 12 * (_n - 1)) // _n
     for i, sk in enumerate(BOMB_SKINS):
-        x = 18 + i * (196 + 12)
-        img = get_bomb_image(92, sk)
+        x = 18 + i * (_cw + 12)
+        img = get_bomb_image(min(92, _cw - 16), sk)
         owned = sk in SETTINGS.get("owned_bombs", ["fuse"])
-        base = draw_skin_card(screen, x, 296, 196, 162, img, skin_card_label("bomb", sk),
+        base = draw_skin_card(screen, x, 296, _cw, 162, img, skin_card_label("bomb", sk),
                               selected=SETTINGS.get("bomb_skin") == sk,
-                              hover=pygame.Rect(x, 296, 196, 162).collidepoint(mouse_pos),
+                              hover=pygame.Rect(x, 296, _cw, 162).collidepoint(mouse_pos),
                               pressed=mouse_down, ticks=ticks, locked=not owned)
         bomb_rects[sk] = base
 
@@ -1558,6 +1589,7 @@ def draw_race_result(screen, race, mouse_pos, mouse_down, ticks):
 def main():
     pygame.init()
     pygame.display.set_caption("Сапёр — уровни, очки и магазин скинов")
+    register_art_skin()  # assets/icon.png -> скин Art (до чтения настроек)
     load_settings()  # тема + скины из файла
     # Рисуем всегда на логический canvas (WIDTHxHEIGHT), на экран — с масштабом.
     # Окно растягивается мышкой (RESIZABLE), на Маке это надёжнее
@@ -1568,7 +1600,8 @@ def main():
                                   "assets", "icon.png")
         if os.path.isfile(_icon_path):
             _icon = pygame.image.load(_icon_path).convert_alpha()
-            pygame.display.set_icon(pygame.transform.smoothscale(_icon, (32, 32)))
+            # крупная иконка (256): ось сама ужмёт чётко, 32 мылит при растягивании
+            pygame.display.set_icon(pygame.transform.smoothscale(_icon, (256, 256)))
     except Exception:
         pass
     canvas = pygame.Surface((WIDTH, HEIGHT))
