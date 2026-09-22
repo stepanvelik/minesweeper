@@ -2119,7 +2119,7 @@ def main():
         else:
             rects = draw(canvas, font, small_font, tiny_font, board,
                          mouse_pos=mouse_pos, mouse_down=mouse_down, ticks=ticks,
-                         show_ttt=mode != "race_game")
+                         show_ttt=mode == "game" and not board.get("start_time"))
             if mode == "race_game":
                 draw_race_hud(canvas, race)
         present()
